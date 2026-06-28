@@ -12,7 +12,20 @@
           "package_name": "com.example.doanmobile002"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "841473450954-coubq6j0fcdtofdqftt93evdea8j9fa3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.doanmobile002",
+            "certificate_hash": "b58624fa6c0e2270b3e973efdcab68057ff56677"
+          }
+        },
+        {
+          "client_id": "841473450954-6ilba7vspfm3k74fiofeleakstfto6uo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBDjEmkboswzMBa19Iznn2H0DLSenYOqDA"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "841473450954-6ilba7vspfm3k74fiofeleakstfto6uo.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
