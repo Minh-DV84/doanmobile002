@@ -5,7 +5,6 @@
     android:layout_height="match_parent"
     android:background="#F5F6FA">
 
-    <!-- Header cố định ở đầu -->
     <LinearLayout
         android:id="@+id/headerLayout"
         android:layout_width="match_parent"
@@ -18,12 +17,11 @@
         android:paddingTop="14dp"
         android:paddingBottom="10dp">
 
-        <!-- Hàng trên: Notification | Tên App | Profile -->
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-            <!-- Nút thông báo (trái) -->
+            <!-- Nút thông báo -->
             <ImageView
                 android:id="@+id/btnNotification"
                 android:layout_width="36dp"
@@ -33,10 +31,10 @@
                 android:src="@drawable/ic_notification"
                 android:background="@drawable/bg_icon_btn"
                 android:padding="6dp"
-                android:contentDescription="Notifications"
-                app:tint="#1A1A2E" />
+                app:tint="#1A1A2E"
+                android:contentDescription="Thông báo" />
 
-            <!-- Tên app (giữa) -->
+            <!-- Tên app -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -44,10 +42,14 @@
                 android:text="KaBar"
                 android:textColor="#1877F2"
                 android:textSize="24sp"
-                android:textStyle="bold"
-                android:fontFamily="sans-serif-medium" />
+                android:textStyle="bold" />
 
-            <!-- Avatar / Profile (phải) -->
+            <!--
+                Profile button:
+                - Chưa login  → icon người dùng mặc định
+                - Đã login    → ảnh avatar tròn từ Firebase
+                - Bấm vào     → nếu chưa login mở LoginActivity
+            -->
             <ImageView
                 android:id="@+id/btnProfile"
                 android:layout_width="36dp"
@@ -55,16 +57,13 @@
                 android:layout_centerVertical="true"
                 android:layout_alignParentEnd="true"
                 android:src="@drawable/ic_profile"
-                android:background="@drawable/bg_icon_btn"
-                android:padding="6dp"
-                android:contentDescription="Profile"
-                app:tint="#1A1A2E" />
+                android:background="@drawable/bg_circle_profile"
+                android:scaleType="centerCrop"
+                android:contentDescription="Profile" />
 
         </RelativeLayout>
-
     </LinearLayout>
 
-    <!-- Fragment container - nằm giữa header và bottom nav -->
     <FrameLayout
         android:id="@+id/fragmentContainer"
         android:layout_width="match_parent"
@@ -72,7 +71,6 @@
         android:layout_below="@id/headerLayout"
         android:layout_above="@+id/bottomNavigation" />
 
-    <!-- Bottom Navigation -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottomNavigation"
         android:layout_width="match_parent"

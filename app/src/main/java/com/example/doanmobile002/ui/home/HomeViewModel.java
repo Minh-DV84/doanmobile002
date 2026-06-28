@@ -1,8 +1,12 @@
 package com.example.doanmobile002.ui.home;
 
+import android.app.Application;
+
+import androidx.annotation.NonNull;
+import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MediatorLiveData;
 import androidx.lifecycle.MutableLiveData;
-import androidx.lifecycle.ViewModel;
 
 import com.example.doanmobile002.data.repository.NewsRepository;
 import com.example.doanmobile002.data.repository.WidgetRepository;
@@ -11,64 +15,108 @@ import com.example.doanmobile002.models.WidgetData;
 
 import java.util.List;
 
-public class HomeViewModel extends ViewModel {
+/**
+ * Dùng AndroidViewModel để có Context (cần cho Room + ConnectivityManager).
+ * Single Source of Truth: UI observe articlesLiveData từ Room.
+ */
+public class HomeViewModel extends AndroidViewModel {
 
     private final NewsRepository   newsRepo;
     private final WidgetRepository widgetRepo;
 
-    private final MutableLiveData<List<NewsArticle>> articlesLiveData = new MutableLiveData<>();
-    private final MutableLiveData<Boolean>           isLoadingLiveData = new MutableLiveData<>(false);
-    private final MutableLiveData<String>            errorLiveData     = new MutableLiveData<>();
-    private final MutableLiveData<WidgetData>        widgetLiveData    = new MutableLiveData<>();
+    // ── LiveData expose cho UI ────────────────────────────────────────────────
 
-    // Track whether we're in search mode (so swipe-to-refresh restores headlines)
-    private String lastQuery = null;
+    // Bài báo — lấy thẳng từ Room qua Transformations
+    private LiveData<List<NewsArticle>> homeArticlesLive;
 
-    public HomeViewModel() {
-        newsRepo   = new NewsRepository();
+    // Kết quả search (không lưu DB, chỉ hiện tạm)
+    private final MutableLiveData<List<NewsArticle>> searchResultsLive = new MutableLiveData<>();
+
+    // Dùng MediatorLiveData để gộp home + search vào 1 stream cho Fragment
+    private final MediatorLiveData<List<NewsArticle>> articlesLiveData = new MediatorLiveData<>();
+
+    private final MutableLiveData<Boolean> isLoadingLiveData = new MutableLiveData<>(false);
+    private final MutableLiveData<String>  errorLiveData     = new MutableLiveData<>();
+    private final MutableLiveData<String>  toastLiveData     = new MutableLiveData<>(); // "offline" toast
+    private final MutableLiveData<WidgetData> widgetLiveData = new MutableLiveData<>();
+
+    private boolean isSearchMode = false;
+    private String  lastQuery    = null;
+
+    public HomeViewModel(@NonNull Application application) {
+        super(application);
+        newsRepo   = new NewsRepository(application);
         widgetRepo = new WidgetRepository();
+
+        // Lấy LiveData trang chủ từ Room
+        homeArticlesLive = newsRepo.getHomeArticlesLive();
+
+        // MediatorLiveData: khi không search → hiện homeArticlesLive
+        articlesLiveData.addSource(homeArticlesLive, articles -> {
+            if (!isSearchMode) {
+                articlesLiveData.setValue(articles);
+            }
+        });
+
+        articlesLiveData.addSource(searchResultsLive, results -> {
+            if (isSearchMode) {
+                articlesLiveData.setValue(results);
+            }
+        });
     }
 
     // ── Exposed LiveData ──────────────────────────────────────────────────────
     public LiveData<List<NewsArticle>> getArticles()  { return articlesLiveData; }
     public LiveData<Boolean>           getIsLoading() { return isLoadingLiveData; }
     public LiveData<String>            getError()     { return errorLiveData; }
+    public LiveData<String>            getToast()     { return toastLiveData; }
     public LiveData<WidgetData>        getWidgetData(){ return widgetLiveData; }
+    public LiveData<List<NewsArticle>> getSavedArticles() {
+        return newsRepo.getSavedArticlesLive();
+    }
 
     // ── Actions ───────────────────────────────────────────────────────────────
 
-    /** Load home RSS headlines */
+    /** Sync tin tức mới từ RSS → Room (trang chủ) */
     public void loadHomeNews() {
-        lastQuery = null;
+        isSearchMode = false;
+        lastQuery    = null;
         isLoadingLiveData.setValue(true);
-        errorLiveData.setValue(null);
 
-        newsRepo.getHomeNews(new NewsRepository.NewsCallback() {
-            @Override public void onSuccess(List<NewsArticle> articles) {
-                isLoadingLiveData.postValue(false);
-                articlesLiveData.postValue(articles);
+        newsRepo.syncHomeNews(new NewsRepository.StatusCallback() {
+            @Override public void onOnline() {
+                // Đang fetch — spinner vẫn quay, LiveData sẽ tự cập nhật khi xong
             }
-            @Override public void onError(String message) {
+            @Override public void onOffline() {
                 isLoadingLiveData.postValue(false);
-                errorLiveData.postValue(message);
+                // Hiện toast offline — Room LiveData vẫn tự hiện cache
+                toastLiveData.postValue("offline");
+            }
+            @Override public void onError(String msg) {
+                isLoadingLiveData.postValue(false);
+                errorLiveData.postValue(msg);
             }
         });
+
+        // Tắt spinner sau 3s (RSS không có callback "xong" rõ ràng)
+        new android.os.Handler(android.os.Looper.getMainLooper())
+                .postDelayed(() -> isLoadingLiveData.postValue(false), 3000);
     }
 
-    /** Search via NewsData.io */
+    /** Tìm kiếm */
     public void searchNews(String query) {
         if (query == null || query.trim().isEmpty()) {
-            loadHomeNews();
+            exitSearch();
             return;
         }
-        lastQuery = query.trim();
+        isSearchMode = true;
+        lastQuery    = query.trim();
         isLoadingLiveData.setValue(true);
-        errorLiveData.setValue(null);
 
         newsRepo.searchNews(lastQuery, new NewsRepository.NewsCallback() {
             @Override public void onSuccess(List<NewsArticle> articles) {
                 isLoadingLiveData.postValue(false);
-                articlesLiveData.postValue(articles);
+                searchResultsLive.postValue(articles);
             }
             @Override public void onError(String message) {
                 isLoadingLiveData.postValue(false);
@@ -77,13 +125,27 @@ public class HomeViewModel extends ViewModel {
         });
     }
 
-    /** Called by swipe-to-refresh */
+    /** Thoát search → về trang chủ */
+    public void exitSearch() {
+        isSearchMode = false;
+        lastQuery    = null;
+        // Lấy lại giá trị hiện tại từ Room
+        if (homeArticlesLive.getValue() != null) {
+            articlesLiveData.setValue(homeArticlesLive.getValue());
+        }
+    }
+
+    /** Lưu / Bỏ lưu bài viết */
+    public void toggleSave(NewsArticle article, boolean save) {
+        newsRepo.toggleSave(article, save);
+    }
+
+    /** Swipe refresh */
     public void refresh() {
-        if (lastQuery == null) loadHomeNews();
+        if (!isSearchMode) loadHomeNews();
         else searchNews(lastQuery);
     }
 
-    /** Load 4-widget data (weather + static prices + day) */
     public void loadWidgetData() {
         widgetRepo.loadWidgetData(data -> widgetLiveData.postValue(data));
     }

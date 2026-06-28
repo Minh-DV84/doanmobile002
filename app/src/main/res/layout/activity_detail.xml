@@ -4,10 +4,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="#F5F6FA">
+    android:orientation="vertical">
 
-    <!-- Toolbar -->
+    <!-- Toolbar xanh cố định -->
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/detailToolbar"
         android:layout_width="match_parent"
@@ -17,149 +16,54 @@
         app:navigationIcon="@drawable/ic_arrow_back"
         app:titleTextColor="#FFFFFF">
 
-        <ImageView
-            android:id="@+id/btnShare"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
             android:layout_gravity="end"
-            android:layout_marginEnd="8dp"
-            android:padding="6dp"
-            android:src="@drawable/ic_share"
-            android:background="@drawable/bg_icon_btn"
-            app:tint="#FFFFFF"
-            android:contentDescription="Chia sẻ" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/btnSave"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_bookmark_outline"
+                android:background="@drawable/bg_icon_btn_toolbar"
+                app:tint="#FFFFFF"
+                android:contentDescription="Lưu bài viết" />
+
+            <ImageView
+                android:id="@+id/btnShare"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_share"
+                android:background="@drawable/bg_icon_btn_toolbar"
+                app:tint="#FFFFFF"
+                android:contentDescription="Chia sẻ" />
+
+        </LinearLayout>
 
     </androidx.appcompat.widget.Toolbar>
 
-    <!-- Progress fetch nội dung -->
+    <!-- Thanh tiến trình load trang (mỏng, xanh) -->
     <ProgressBar
         android:id="@+id/detailProgressBar"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="3dp"
-        android:indeterminate="true"
-        android:indeterminateTint="#1877F2"
+        android:max="100"
+        android:progressTint="#1877F2"
         android:visibility="gone" />
 
-    <!-- Nội dung cuộn -->
-    <ScrollView
+    <!-- WebView chiếm toàn màn hình còn lại -->
+    <WebView
+        android:id="@+id/detailWebView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingBottom="32dp">
-
-            <!-- Ảnh hero -->
-            <ImageView
-                android:id="@+id/detailImgHero"
-                android:layout_width="match_parent"
-                android:layout_height="220dp"
-                android:scaleType="centerCrop" />
-
-            <!-- Card nội dung -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_margin="14dp"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="4dp"
-                app:cardBackgroundColor="#FFFFFF">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="18dp">
-
-                    <!-- Nguồn báo -->
-                    <TextView
-                        android:id="@+id/detailTvSource"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/bg_category_badge"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp"
-                        android:paddingTop="4dp"
-                        android:paddingBottom="4dp"
-                        android:textColor="#FFFFFF"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-
-                    <!-- Tiêu đề -->
-                    <TextView
-                        android:id="@+id/detailTvTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:textColor="#1A1A2E"
-                        android:textSize="20sp"
-                        android:textStyle="bold"
-                        android:lineSpacingMultiplier="1.3" />
-
-                    <!-- Thời gian -->
-                    <TextView
-                        android:id="@+id/detailTvTime"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:drawableStart="@drawable/ic_time"
-                        android:drawablePadding="4dp"
-                        android:gravity="center_vertical"
-                        android:textColor="#9E9E9E"
-                        android:textSize="12sp" />
-
-                    <!-- Divider -->
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginTop="14dp"
-                        android:layout_marginBottom="14dp"
-                        android:background="#F0F2F5" />
-
-                    <!-- Đang tải... -->
-                    <TextView
-                        android:id="@+id/detailTvLoading"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Đang tải nội dung..."
-                        android:textColor="#9E9E9E"
-                        android:textSize="14sp"
-                        android:visibility="gone" />
-
-                    <!-- Nội dung bài viết đầy đủ -->
-                    <TextView
-                        android:id="@+id/detailTvDescription"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:textColor="#2D2D2D"
-                        android:textSize="15sp"
-                        android:lineSpacingMultiplier="1.7" />
-
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- Nút dự phòng: mở trình duyệt nếu không parse được -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/detailBtnOpenBrowser"
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_marginStart="14dp"
-                android:layout_marginEnd="14dp"
-                android:text="Mở trên trình duyệt"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold"
-                app:backgroundTint="#1877F2"
-                app:cornerRadius="12dp"
-                app:icon="@drawable/ic_open_browser"
-                app:iconGravity="textEnd"
-                app:iconTint="#FFFFFF"
-                android:visibility="gone" />
-
-        </LinearLayout>
-    </ScrollView>
+        android:layout_weight="1" />
 
 </LinearLayout>

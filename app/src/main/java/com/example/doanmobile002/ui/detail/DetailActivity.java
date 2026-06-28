@@ -1,243 +1,284 @@
 package com.example.doanmobile002.ui.detail;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
-import android.widget.ScrollView;
-import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ImageView;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.example.doanmobile002.R;
-
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-
-import java.io.IOException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-import java.util.TimeZone;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import com.example.doanmobile002.data.repository.NewsRepository;
+import com.example.doanmobile002.models.NewsArticle;
+import com.google.firebase.auth.FirebaseAuth;
 
 public class DetailActivity extends AppCompatActivity {
 
-    public static final String EXTRA_TITLE      = "extra_title";
-    public static final String EXTRA_URL        = "extra_url";
-    public static final String EXTRA_URL_IMAGE  = "extra_url_image";
-    public static final String EXTRA_DESCRIPTION= "extra_description";
-    public static final String EXTRA_SOURCE     = "extra_source";
-    public static final String EXTRA_PUBLISHED  = "extra_published";
+    public static final String EXTRA_TITLE        = "extra_title";
+    public static final String EXTRA_URL           = "extra_url";
+    public static final String EXTRA_SOURCE        = "extra_source";
+    public static final String EXTRA_IMAGE         = "extra_image";
+    public static final String EXTRA_PUBLISHED_AT  = "extra_published_at";
 
-    private String articleUrl;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private WebView     webView;
+    private ProgressBar progressBar;
+    private String      articleUrl;
+    private String      articleTitle;
+    private String      articleSource;
+    private String      articleImage;
+    private String      articlePublishedAt;
 
+    private ImageView      btnSave;
+    private NewsRepository newsRepository;
+    private FirebaseAuth   firebaseAuth;
+    private boolean        isSaved = false;
+
+    @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_detail);
 
-        Intent intent   = getIntent();
-        String title    = intent.getStringExtra(EXTRA_TITLE);
-        String urlImage = intent.getStringExtra(EXTRA_URL_IMAGE);
-        String desc     = intent.getStringExtra(EXTRA_DESCRIPTION);
-        String source   = intent.getStringExtra(EXTRA_SOURCE);
-        String pubAt    = intent.getStringExtra(EXTRA_PUBLISHED);
-        articleUrl      = intent.getStringExtra(EXTRA_URL);
+        String title  = getIntent().getStringExtra(EXTRA_TITLE);
+        String source = getIntent().getStringExtra(EXTRA_SOURCE);
+        articleUrl    = getIntent().getStringExtra(EXTRA_URL);
+        articleTitle  = title;
+        articleSource = source;
+        articleImage       = getIntent().getStringExtra(EXTRA_IMAGE);
+        articlePublishedAt = getIntent().getStringExtra(EXTRA_PUBLISHED_AT);
+
+        newsRepository = new NewsRepository(this);
+        firebaseAuth   = FirebaseAuth.getInstance();
 
         setupToolbar(title, source);
-        bindHeader(title, urlImage, source, pubAt, desc);
-        fetchFullContent(); // Tự động fetch nội dung đầy đủ
+        setupWebView();
+        setupSaveButton();
+        setupBackPressedHandler();
+
+        if (articleUrl != null && !articleUrl.isEmpty()) {
+            webView.loadUrl(articleUrl);
+        } else {
+            Toast.makeText(this, "Không có link bài viết", Toast.LENGTH_SHORT).show();
+            finish();
+        }
     }
 
-    // ── Toolbar ──────────────────────────────────────────────────────────────
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Đăng nhập/đăng xuất có thể xảy ra ở màn khác trong lúc Activity này
+        // đang ở background — cập nhật lại icon cho đúng trạng thái hiện tại.
+        if (btnSave != null && articleUrl != null) {
+            if (firebaseAuth.getCurrentUser() != null) {
+                newsRepository.checkSaved(articleUrl, saved -> {
+                    isSaved = saved;
+                    updateSaveIcon();
+                });
+            } else {
+                isSaved = false;
+                updateSaveIcon();
+            }
+        }
+    }
+
     private void setupToolbar(String title, String source) {
         Toolbar toolbar = findViewById(R.id.detailToolbar);
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setTitle(source != null ? source : "");
+            getSupportActionBar().setTitle(source != null ? source : "Bài viết");
         }
         if (toolbar.getNavigationIcon() != null)
             toolbar.getNavigationIcon().setTint(Color.WHITE);
 
-        toolbar.setNavigationOnClickListener(v -> onBackPressed());
+        toolbar.setNavigationOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
         findViewById(R.id.btnShare).setOnClickListener(v -> shareArticle());
     }
 
-    // ── Hiển thị header ngay (ảnh + tiêu đề + tóm tắt) ─────────────────────
-    private void bindHeader(String title, String urlImage,
-                            String source, String pubAt, String desc) {
-        ImageView imgHero  = findViewById(R.id.detailImgHero);
-        TextView  tvTitle  = findViewById(R.id.detailTvTitle);
-        TextView  tvSource = findViewById(R.id.detailTvSource);
-        TextView  tvTime   = findViewById(R.id.detailTvTime);
-        TextView  tvDesc   = findViewById(R.id.detailTvDescription);
+    /**
+     * Khởi tạo nút Lưu: kiểm tra trạng thái đã lưu chưa, cập nhật icon,
+     * và gắn listener để toggle lưu/bỏ lưu.
+     */
+    private void setupSaveButton() {
+        btnSave = findViewById(R.id.btnSave);
+        if (btnSave == null || articleUrl == null) return;
 
-        // Ảnh
-        Glide.with(this)
-                .load(urlImage)
-                .placeholder(R.drawable.placeholder_news)
-                .error(R.drawable.placeholder_news)
-                .transition(DrawableTransitionOptions.withCrossFade())
-                .centerCrop()
-                .into(imgHero);
-
-        tvTitle.setText(title != null ? title : "");
-        tvSource.setText(source != null ? source : "");
-        tvTime.setText(formatDate(pubAt));
-
-        // Hiện mô tả trước, sau khi fetch xong sẽ thay bằng full content
-        if (desc != null && !desc.isEmpty()) {
-            tvDesc.setText(desc);
+        // Chỉ kiểm tra trạng thái đã lưu nếu đã đăng nhập;
+        // chưa đăng nhập thì không thể có bài đã lưu, giữ icon outline.
+        if (firebaseAuth.getCurrentUser() != null) {
+            newsRepository.checkSaved(articleUrl, saved -> {
+                isSaved = saved;
+                updateSaveIcon();
+            });
         }
+
+        btnSave.setOnClickListener(v -> toggleSaveArticle());
     }
 
-    // ── Fetch nội dung đầy đủ bằng Jsoup (chạy background thread) ───────────
-    private void fetchFullContent() {
-        ProgressBar progressBar = findViewById(R.id.detailProgressBar);
-        TextView    tvContent   = findViewById(R.id.detailTvDescription);
-        TextView    tvLoading   = findViewById(R.id.detailTvLoading);
+    private void toggleSaveArticle() {
+        if (articleUrl == null || articleUrl.isEmpty()) return;
 
-        progressBar.setVisibility(View.VISIBLE);
-        tvLoading.setVisibility(View.VISIBLE);
+        // Chặn lưu bài nếu chưa đăng nhập
+        if (firebaseAuth.getCurrentUser() == null) {
+            Toast.makeText(this, "Vui lòng đăng nhập để lưu bài viết", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-        executor.execute(() -> {
-            try {
-                // Fetch HTML trang báo
-                Document doc = Jsoup.connect(articleUrl)
-                        .userAgent("Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36")
-                        .timeout(10000)
-                        .get();
+        boolean newState = !isSaved;
 
-                // Trích xuất nội dung chính — thử các selector phổ biến của báo VN
-                String content = extractContent(doc);
+        NewsArticle article = new NewsArticle(
+                articleTitle, null, articleImage,
+                articleUrl, articlePublishedAt, articleSource, null
+        );
+        newsRepository.toggleSave(article, newState);
 
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    tvLoading.setVisibility(View.GONE);
-                    if (content != null && !content.isEmpty()) {
-                        tvContent.setText(content);
-                    } else {
-                        tvContent.setText("Không thể tải nội dung đầy đủ.\nVui lòng nhấn nút bên dưới để đọc trên trình duyệt.");
-                        findViewById(R.id.detailBtnOpenBrowser).setVisibility(View.VISIBLE);
-                    }
-                });
+        isSaved = newState;
+        updateSaveIcon();
 
-            } catch (IOException e) {
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    tvLoading.setVisibility(View.GONE);
-                    tvContent.setText("Không thể tải nội dung. Kiểm tra kết nối mạng.");
-                    findViewById(R.id.detailBtnOpenBrowser).setVisibility(View.VISIBLE);
-                });
+        Toast.makeText(this,
+                newState ? "Đã lưu bài viết" : "Đã bỏ lưu bài viết",
+                Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateSaveIcon() {
+        if (btnSave == null) return;
+        btnSave.setImageResource(
+                isSaved ? R.drawable.ic_bookmark_filled : R.drawable.ic_bookmark_outline
+        );
+    }
+
+    /**
+     * Thay cho onBackPressed() (đã deprecated, không còn được gọi với
+     * back gesture trên Android 13+). Ưu tiên goBack() trong WebView,
+     * nếu không còn lịch sử thì để hệ thống xử lý back bình thường.
+     */
+    private void setupBackPressedHandler() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (webView != null && webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
             }
         });
     }
 
-    // ── Trích xuất nội dung chính từ HTML ────────────────────────────────────
-    private String extractContent(Document doc) {
-        StringBuilder sb = new StringBuilder();
+    @SuppressLint("SetJavaScriptEnabled")
+    private void setupWebView() {
+        webView     = findViewById(R.id.detailWebView);
+        progressBar = findViewById(R.id.detailProgressBar);
 
-        // Danh sách selector theo thứ tự ưu tiên — phủ các báo VN lớn
-        String[] selectors = {
-                // VnExpress
-                "article.fck_detail",
-                // Tuổi Trẻ
-                "div.detail-content",
-                // Thanh Niên
-                "div#abody",
-                // Dân Trí
-                "div.singular-content",
-                // Zing News
-                "div.the-article-body",
-                // CafeF
-                "div#mainContent",
-                // Báo chung
-                "article",
-                "div.article-content",
-                "div.post-content",
-                "div.entry-content",
-                "div.content-detail",
-                "div[itemprop=articleBody]",
-                "div.article-body",
-                "div.body-content"
-        };
+        WebSettings s = webView.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setLoadWithOverviewMode(true);
+        s.setUseWideViewPort(true);
+        s.setBuiltInZoomControls(true);
+        s.setDisplayZoomControls(false);
+        // Cho phép load hình ảnh
+        s.setLoadsImagesAutomatically(true);
+        // User-agent giả mobile để trang báo hiện bản mobile (gọn hơn)
+        s.setUserAgentString(
+                "Mozilla/5.0 (Linux; Android 11; Pixel 5) " +
+                        "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                        "Chrome/120.0.0.0 Mobile Safari/537.36"
+        );
 
-        for (String selector : selectors) {
-            Element el = doc.selectFirst(selector);
-            if (el != null) {
-                // Xóa các phần tử thừa: quảng cáo, script, liên quan
-                el.select("script, style, .ads, .advertisement, "
-                        + ".related, .box-related, .tag, figure.photo, "
-                        + ".author-info, .social-share").remove();
-
-                // Lấy từng đoạn văn
-                Elements paragraphs = el.select("p");
-                if (!paragraphs.isEmpty()) {
-                    for (Element p : paragraphs) {
-                        String text = p.text().trim();
-                        if (text.length() > 30) { // Bỏ đoạn quá ngắn (caption, label)
-                            sb.append(text).append("\n\n");
-                        }
-                    }
-                }
-
-                if (sb.length() > 100) break; // Lấy được rồi thì dừng
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                progressBar.setVisibility(View.VISIBLE);
             }
-        }
 
-        return sb.toString().trim();
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                progressBar.setVisibility(View.GONE);
+                // Inject CSS để ẩn header/footer/nav/quảng cáo của trang báo
+                injectHideUI(view);
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
+                // Giữ mọi link trong app, không mở Chrome ngoài
+                view.loadUrl(req.getUrl().toString());
+                return true;
+            }
+        });
+
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onProgressChanged(WebView view, int newProgress) {
+                progressBar.setProgress(newProgress);
+                if (newProgress == 100)
+                    progressBar.setVisibility(View.GONE);
+            }
+        });
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    /**
+     * Inject JavaScript để ẩn các thành phần không phải nội dung bài báo.
+     * Phủ các báo VN lớn: VnExpress, Tuổi Trẻ, Thanh Niên, Dân Trí, Zing.
+     */
+    private void injectHideUI(WebView view) {
+        String js = "javascript:(function() {" +
+                // Danh sách selector cần ẨN (header, footer, nav, sidebar, ads)
+                "var selectorsToHide = [" +
+                // Chung
+                "'header','footer','nav','.header','.footer','.navbar'," +
+                "'.navigation','.sidebar','.side-bar','.ads','.ad'," +
+                "'.advertisement','.banner','.popup','.modal'," +
+                "'.social-share','.share-button','.comment-section'," +
+                "'.comments','.related-news','.box-related','.read-more'," +
+                "'.tag-list','.tags','.breadcrumb','.cookie-banner'," +
+                // VnExpress
+                "'.header-new','.footer-new','.box-category-top'," +
+                "'.sidebar-1','.box-toppick','.bottom-bar'," +
+                // Tuổi Trẻ
+                "'.main-header','.main-footer','.box-menu'," +
+                "'.box-tags','.box-comment','.box-newsletter'," +
+                // Thanh Niên
+                "'.zone-main-header','.zone-main-footer'," +
+                "'.related-container','.sticky-bar'," +
+                // Dân Trí
+                "'.dt-header','.dt-footer','.dt-sidebar'," +
+                "'.social-plugin','.tdi_122'," +
+                // Zing
+                "'.zn-header','.zn-footer','.zn-nav'" +
+                "];" +
+                // Ẩn tất cả
+                "selectorsToHide.forEach(function(sel){" +
+                "  var els = document.querySelectorAll(sel);" +
+                "  els.forEach(function(el){ el.style.display='none'; });" +
+                "});" +
+                // Xóa margin/padding thừa của body
+                "document.body.style.marginTop='0';" +
+                "document.body.style.paddingTop='0';" +
+                "})()";
+
+        view.evaluateJavascript(js, null);
+    }
+
     private void shareArticle() {
-        if (articleUrl == null || articleUrl.isEmpty()) return;
+        if (articleUrl == null) return;
         Intent share = new Intent(Intent.ACTION_SEND);
         share.setType("text/plain");
         share.putExtra(Intent.EXTRA_TEXT, articleUrl);
         startActivity(Intent.createChooser(share, "Chia sẻ bài viết"));
-    }
-
-    private String formatDate(String raw) {
-        if (raw == null || raw.isEmpty()) return "";
-        String[] patterns = {
-                "yyyy-MM-dd'T'HH:mm:ss'Z'",
-                "yyyy-MM-dd'T'HH:mm:ssZ",
-                "yyyy-MM-dd HH:mm:ss",
-                "EEE, dd MMM yyyy HH:mm:ss Z"
-        };
-        for (String p : patterns) {
-            try {
-                SimpleDateFormat sdf = new SimpleDateFormat(p,
-                        p.startsWith("EEE") ? Locale.ENGLISH : Locale.US);
-                sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-                Date d = sdf.parse(raw);
-                if (d != null) {
-                    return new SimpleDateFormat("HH:mm - dd/MM/yyyy",
-                            new Locale("vi")).format(d);
-                }
-            } catch (ParseException ignored) {}
-        }
-        return raw.substring(0, Math.min(10, raw.length()));
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        executor.shutdownNow();
     }
 }

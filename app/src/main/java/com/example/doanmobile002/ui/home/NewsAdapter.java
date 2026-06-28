@@ -8,6 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -15,8 +16,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.example.doanmobile002.R;
+import com.example.doanmobile002.data.repository.NewsRepository;
 import com.example.doanmobile002.models.NewsArticle;
 import com.example.doanmobile002.ui.detail.DetailActivity;
+import com.google.firebase.auth.FirebaseAuth;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -33,8 +36,14 @@ public class NewsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private List<NewsArticle> articles = new ArrayList<>();
     private final Context context;
+    private final NewsRepository newsRepository;
+    private final FirebaseAuth firebaseAuth;
 
-    public NewsAdapter(Context context) { this.context = context; }
+    public NewsAdapter(Context context) {
+        this.context        = context;
+        this.newsRepository = new NewsRepository(context);
+        this.firebaseAuth   = FirebaseAuth.getInstance();
+    }
 
     public void setArticles(List<NewsArticle> newArticles) {
         this.articles = newArticles != null ? newArticles : new ArrayList<>();
@@ -62,7 +71,7 @@ public class NewsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     // ── Banner ────────────────────────────────────────────────────────────────
     class BannerViewHolder extends RecyclerView.ViewHolder {
-        ImageView imgBanner;
+        ImageView imgBanner, btnSave;
         TextView  tvCategory, tvTitle, tvMeta;
 
         BannerViewHolder(View v) {
@@ -71,6 +80,7 @@ public class NewsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             tvCategory = v.findViewById(R.id.tvBannerCategory);
             tvTitle    = v.findViewById(R.id.tvBannerTitle);
             tvMeta     = v.findViewById(R.id.tvBannerMeta);
+            btnSave    = v.findViewById(R.id.btnBannerSave);
         }
 
         void bind(NewsArticle a) {
@@ -88,12 +98,14 @@ public class NewsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
             // Click → mở DetailActivity
             itemView.setOnClickListener(v -> openDetail(a));
+
+            setupSaveButton(btnSave, a);
         }
     }
 
     // ── Card ──────────────────────────────────────────────────────────────────
     class CardViewHolder extends RecyclerView.ViewHolder {
-        ImageView imgThumb;
+        ImageView imgThumb, btnSave;
         TextView  tvTitle, tvSource, tvTime;
 
         CardViewHolder(View v) {
@@ -102,6 +114,7 @@ public class NewsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             tvTitle  = v.findViewById(R.id.tvCardTitle);
             tvSource = v.findViewById(R.id.tvCardSource);
             tvTime   = v.findViewById(R.id.tvCardTime);
+            btnSave  = v.findViewById(R.id.btnCardSave);
         }
 
         void bind(NewsArticle a) {
@@ -119,7 +132,55 @@ public class NewsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
             // Click → mở DetailActivity
             itemView.setOnClickListener(v -> openDetail(a));
+
+            setupSaveButton(btnSave, a);
         }
+    }
+
+    // ── Nút lưu bài (dùng chung cho Banner và Card) ─────────────────────────
+    private void setupSaveButton(ImageView btnSave, NewsArticle a) {
+        if (btnSave == null) return;
+        final String thisUrl = a.getUrl();
+        btnSave.setImageResource(R.drawable.ic_bookmark_outline);
+        btnSave.setTag(thisUrl);
+
+        boolean isLoggedIn = firebaseAuth.getCurrentUser() != null;
+
+        // Chưa đăng nhập thì chắc chắn không có bài đã lưu, bỏ qua check
+        if (isLoggedIn && thisUrl != null) {
+            newsRepository.checkSaved(thisUrl, saved -> {
+                // Chỉ áp dụng nếu view chưa bị recycle sang item khác
+                if (thisUrl.equals(btnSave.getTag())) {
+                    btnSave.setImageResource(
+                            saved ? R.drawable.ic_bookmark_filled
+                                    : R.drawable.ic_bookmark_outline);
+                }
+            });
+        }
+
+        btnSave.setOnClickListener(v -> {
+            if (thisUrl == null) return;
+
+            // Chặn lưu bài nếu chưa đăng nhập
+            if (firebaseAuth.getCurrentUser() == null) {
+                Toast.makeText(context, "Vui lòng đăng nhập để lưu bài viết",
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            newsRepository.checkSaved(thisUrl, saved -> {
+                boolean newState = !saved;
+                newsRepository.toggleSave(a, newState);
+                if (thisUrl.equals(btnSave.getTag())) {
+                    btnSave.setImageResource(
+                            newState ? R.drawable.ic_bookmark_filled
+                                    : R.drawable.ic_bookmark_outline);
+                }
+                Toast.makeText(context,
+                        newState ? "Đã lưu bài viết" : "Đã bỏ lưu bài viết",
+                        Toast.LENGTH_SHORT).show();
+            });
+        });
     }
 
     // ── Mở màn hình chi tiết ─────────────────────────────────────────────────
@@ -128,6 +189,8 @@ public class NewsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         intent.putExtra(DetailActivity.EXTRA_TITLE,  a.getTitle());
         intent.putExtra(DetailActivity.EXTRA_URL,    a.getUrl());
         intent.putExtra(DetailActivity.EXTRA_SOURCE, a.getSourceName());
+        intent.putExtra(DetailActivity.EXTRA_IMAGE,  a.getUrlToImage());
+        intent.putExtra(DetailActivity.EXTRA_PUBLISHED_AT, a.getPublishedAt());
         context.startActivity(intent);
     }
 

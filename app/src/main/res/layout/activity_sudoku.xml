@@ -1,7 +1,107 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F5F6FA">
+
+    <!-- Toolbar -->
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/sdToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="#1877F2"
+        android:elevation="4dp"
+        app:titleTextColor="#FFFFFF" />
+
+    <!-- Thanh trạng thái -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/tvMistakes"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="❌ 0/3"
+            android:textColor="#E53935"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvSdTimer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="⏱ 00:00"
+            android:textColor="#1A1A2E"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
+
+    <!-- Bàn cờ Sudoku 9x9 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <androidx.cardview.widget.CardView
+            app:cardElevation="4dp"
+            app:cardCornerRadius="4dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+
+            <GridLayout
+                android:id="@+id/sdBoardGrid"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="#1A1A2E"
+                android:padding="2dp" />
+
+        </androidx.cardview.widget.CardView>
+    </LinearLayout>
+
+    <!-- Bàn phím số 1-9 + Xóa -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:gravity="center">
+
+        <Button android:id="@+id/btnNum1" style="@style/SudokuNumButton" android:text="1"/>
+        <Button android:id="@+id/btnNum2" style="@style/SudokuNumButton" android:text="2"/>
+        <Button android:id="@+id/btnNum3" style="@style/SudokuNumButton" android:text="3"/>
+        <Button android:id="@+id/btnNum4" style="@style/SudokuNumButton" android:text="4"/>
+        <Button android:id="@+id/btnNum5" style="@style/SudokuNumButton" android:text="5"/>
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="16dp"
+        android:gravity="center">
+
+        <Button android:id="@+id/btnNum6" style="@style/SudokuNumButton" android:text="6"/>
+        <Button android:id="@+id/btnNum7" style="@style/SudokuNumButton" android:text="7"/>
+        <Button android:id="@+id/btnNum8" style="@style/SudokuNumButton" android:text="8"/>
+        <Button android:id="@+id/btnNum9" style="@style/SudokuNumButton" android:text="9"/>
+        <Button android:id="@+id/btnErase" style="@style/SudokuNumButton" android:text="⌫"/>
+
+    </LinearLayout>
 
 </LinearLayout>

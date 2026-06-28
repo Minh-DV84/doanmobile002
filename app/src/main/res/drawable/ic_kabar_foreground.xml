@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Foreground layer cho adaptive icon. Canvas chuẩn 108x108dp, logo được
+    scale để nằm trong vùng an toàn 66x66dp ở giữa (offset 21dp mỗi cạnh) —
+    tránh bị crop khi hệ thống áp mask tròn/vuông/squircle khác nhau.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Nhánh dọc + nhánh dưới chữ K (màu trắng) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.48"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M43.16,34.2 L43.16,68.14 M43.16,51.17 L58.71,68.14" />
+
+    <!-- Nhánh trên chữ K hóa tia chớp (màu cam, gợi dáng số 3) -->
+    <path
+        android:fillColor="#FF6F00"
+        android:pathData="M43.16,51.17 L58.71,34.2 L53.06,34.2 L65.31,27.13 L54.94,42.69 L61.07,42.69 Z" />
+
+</vector>

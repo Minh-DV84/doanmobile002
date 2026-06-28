@@ -48,6 +48,35 @@
                     android:textSize="14sp" />
             </LinearLayout>
 
+            <LinearLayout
+                android:id="@+id/offlineBanner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#FF6B35"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:padding="10dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:src="@drawable/ic_notification"
+                    app:tint="#FFFFFF" />
+
+                <TextView
+                    android:id="@+id/tvOfflineMsg"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Bạn đang ở chế độ ngoại tuyến — hiển thị tin đã cache"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+
+
             <!-- ══════════════════════════════════════════════════════════════ -->
             <!-- 4 Widget Cards Row                                             -->
             <!-- ══════════════════════════════════════════════════════════════ -->

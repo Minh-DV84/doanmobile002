@@ -26,15 +26,18 @@ import com.example.doanmobile002.models.WidgetData;
 
 public class HomeFragment extends Fragment {
 
-    private HomeViewModel viewModel;
-    private NewsAdapter   adapter;
+    private HomeViewModel  viewModel;
+    private NewsAdapter    adapter;
 
-    // ── Views ─────────────────────────────────────────────────────────────────
-    private RecyclerView      recyclerView;
-    private ProgressBar       progressBar;
+    private RecyclerView       recyclerView;
+    private ProgressBar        progressBar;
     private SwipeRefreshLayout swipeRefresh;
-    private TextView          tvError;
-    private EditText          etSearch;
+    private TextView           tvError;
+    private EditText           etSearch;
+
+    // Banner offline
+    private View    offlineBanner;
+    private TextView tvOfflineMsg;
 
     // Widget cards
     private TextView  tvDayOfWeek, tvDate;
@@ -42,8 +45,6 @@ public class HomeFragment extends Fragment {
     private ImageView imgWeatherIcon;
     private TextView  tvPetrolPrice, tvPetrolType;
     private TextView  tvGoldBuy, tvGoldSell, tvGoldUnit;
-
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     @Nullable
     @Override
@@ -69,33 +70,26 @@ public class HomeFragment extends Fragment {
         viewModel.loadWidgetData();
     }
 
-    // ── Setup ─────────────────────────────────────────────────────────────────
-
     private void bindViews(View v) {
-        recyclerView = v.findViewById(R.id.homeRecyclerView);
-        progressBar  = v.findViewById(R.id.homeProgressBar);
-        swipeRefresh = v.findViewById(R.id.homeSwipeRefresh);
-        tvError      = v.findViewById(R.id.homeTvError);
-        etSearch     = v.findViewById(R.id.homeEtSearch);
+        recyclerView  = v.findViewById(R.id.homeRecyclerView);
+        progressBar   = v.findViewById(R.id.homeProgressBar);
+        swipeRefresh  = v.findViewById(R.id.homeSwipeRefresh);
+        tvError       = v.findViewById(R.id.homeTvError);
+        etSearch      = v.findViewById(R.id.homeEtSearch);
+        offlineBanner = v.findViewById(R.id.offlineBanner);
+        tvOfflineMsg  = v.findViewById(R.id.tvOfflineMsg);
 
-        // Widget: Day
-        tvDayOfWeek = v.findViewById(R.id.tvDayOfWeek);
-        tvDate      = v.findViewById(R.id.tvDate);
-
-        // Widget: Weather
-        tvWeatherCity = v.findViewById(R.id.tvWeatherCity);
-        tvWeatherTemp = v.findViewById(R.id.tvWeatherTemp);
-        tvWeatherDesc = v.findViewById(R.id.tvWeatherDesc);
+        tvDayOfWeek    = v.findViewById(R.id.tvDayOfWeek);
+        tvDate         = v.findViewById(R.id.tvDate);
+        tvWeatherCity  = v.findViewById(R.id.tvWeatherCity);
+        tvWeatherTemp  = v.findViewById(R.id.tvWeatherTemp);
+        tvWeatherDesc  = v.findViewById(R.id.tvWeatherDesc);
         imgWeatherIcon = v.findViewById(R.id.imgWeatherIcon);
-
-        // Widget: Petrol
-        tvPetrolPrice = v.findViewById(R.id.tvPetrolPrice);
-        tvPetrolType  = v.findViewById(R.id.tvPetrolType);
-
-        // Widget: Gold
-        tvGoldBuy  = v.findViewById(R.id.tvGoldBuy);
-        tvGoldSell = v.findViewById(R.id.tvGoldSell);
-        tvGoldUnit = v.findViewById(R.id.tvGoldUnit);
+        tvPetrolPrice  = v.findViewById(R.id.tvPetrolPrice);
+        tvPetrolType   = v.findViewById(R.id.tvPetrolType);
+        tvGoldBuy      = v.findViewById(R.id.tvGoldBuy);
+        tvGoldSell     = v.findViewById(R.id.tvGoldSell);
+        tvGoldUnit     = v.findViewById(R.id.tvGoldUnit);
     }
 
     private void setupRecyclerView() {
@@ -107,17 +101,13 @@ public class HomeFragment extends Fragment {
 
     private void setupSearch() {
         etSearch.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void beforeTextChanged(CharSequence s, int i, int i1, int i2) {}
             @Override public void afterTextChanged(Editable s) {}
-
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                String query = s.toString().trim();
-                if (query.isEmpty()) {
-                    viewModel.loadHomeNews();
-                } else if (query.length() >= 3) {
-                    viewModel.searchNews(query);
-                }
+                String q = s.toString().trim();
+                if (q.isEmpty()) viewModel.exitSearch();
+                else if (q.length() >= 3) viewModel.searchNews(q);
             }
         });
     }
@@ -127,68 +117,61 @@ public class HomeFragment extends Fragment {
         swipeRefresh.setOnRefreshListener(() -> viewModel.refresh());
     }
 
-    // ── Observers ─────────────────────────────────────────────────────────────
-
     private void observeViewModel() {
 
+        // Bài báo — từ Room (luôn có dữ liệu kể cả offline)
         viewModel.getArticles().observe(getViewLifecycleOwner(), articles -> {
+            swipeRefresh.setRefreshing(false);
             if (articles != null && !articles.isEmpty()) {
                 adapter.setArticles(articles);
                 tvError.setVisibility(View.GONE);
                 recyclerView.setVisibility(View.VISIBLE);
             } else {
-                tvError.setText("Không có bài viết nào.");
+                tvError.setText("Chưa có bài viết nào.\nKéo xuống để tải.");
                 tvError.setVisibility(View.VISIBLE);
             }
         });
 
-        viewModel.getIsLoading().observe(getViewLifecycleOwner(), isLoading -> {
-            if (swipeRefresh.isRefreshing()) {
-                if (!isLoading) swipeRefresh.setRefreshing(false);
-            } else {
-                progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
+        // Loading
+        viewModel.getIsLoading().observe(getViewLifecycleOwner(), loading -> {
+            if (!swipeRefresh.isRefreshing())
+                progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
+            if (!loading) swipeRefresh.setRefreshing(false);
+        });
+
+        // Lỗi thông thường
+        viewModel.getError().observe(getViewLifecycleOwner(), error -> {
+            if (error != null && !error.isEmpty()) {
+                Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show();
             }
         });
 
-        viewModel.getError().observe(getViewLifecycleOwner(), error -> {
-            if (error != null) {
-                Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show();
-                if (adapter.getItemCount() == 0) {
-                    tvError.setText(error);
-                    tvError.setVisibility(View.VISIBLE);
-                }
+        // Toast offline — hiện banner thay vì Toast
+        viewModel.getToast().observe(getViewLifecycleOwner(), type -> {
+            if ("offline".equals(type) && offlineBanner != null) {
+                offlineBanner.setVisibility(View.VISIBLE);
+                // Tự ẩn sau 4 giây
+                offlineBanner.postDelayed(
+                        () -> offlineBanner.setVisibility(View.GONE), 4000);
             }
         });
 
         viewModel.getWidgetData().observe(getViewLifecycleOwner(), this::bindWidgetData);
     }
 
-    // ── Widget binding ────────────────────────────────────────────────────────
-
     private void bindWidgetData(WidgetData data) {
         if (data == null) return;
-
-        // Day card
-        if (tvDayOfWeek != null) tvDayOfWeek.setText(data.getDayOfWeek());
-        if (tvDate != null)      tvDate.setText(data.getDateStr());
-
-        // Weather card
+        if (tvDayOfWeek != null)   tvDayOfWeek.setText(data.getDayOfWeek());
+        if (tvDate != null)        tvDate.setText(data.getDateStr());
         if (tvWeatherCity != null) tvWeatherCity.setText(data.getWeatherCity());
         if (tvWeatherTemp != null) tvWeatherTemp.setText(data.getWeatherTemp());
         if (tvWeatherDesc != null) tvWeatherDesc.setText(data.getWeatherDesc());
-        if (imgWeatherIcon != null && data.getWeatherIcon() != null) {
-            Glide.with(this)
-                    .load(data.getWeatherIcon())
-                    .into(imgWeatherIcon);
-        }
-
-        // Petrol card
+        if (imgWeatherIcon != null && data.getWeatherIcon() != null)
+            Glide.with(this).load(data.getWeatherIcon()).into(imgWeatherIcon);
         if (tvPetrolPrice != null) tvPetrolPrice.setText(data.getPetrolPrice());
-        if (tvPetrolType  != null) tvPetrolType.setText(data.getPetrolDate());
-
-        // Gold card
-        if (tvGoldBuy  != null) tvGoldBuy.setText(data.getGoldBuy());
-        if (tvGoldSell != null) tvGoldSell.setText(data.getGoldSell());
-        if (tvGoldUnit != null) tvGoldUnit.setText(data.getGoldUnit());
+        if (tvPetrolType != null)  tvPetrolType.setText(data.getPetrolDate());
+        if (tvGoldBuy != null)     tvGoldBuy.setText(data.getGoldBuy());
+        if (tvGoldSell != null)    tvGoldSell.setText(data.getGoldSell());
+        if (tvGoldUnit != null)    tvGoldUnit.setText(data.getGoldUnit());
     }
 }

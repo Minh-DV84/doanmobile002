@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?attr/colorSurface">
+
+    <!-- Header -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="❤ Bài viết đã lưu"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="?attr/colorOnSurface"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp" />
+
+    <!-- Card yêu cầu đăng nhập (hiện khi chưa đăng nhập) -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/layoutLoginPrompt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:visibility="gone"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="4dp"
+        app:cardBackgroundColor="?attr/colorSurfaceVariant">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔐"
+                android:textSize="48sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Đăng nhập để lưu bài viết"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface"
+                android:layout_marginTop="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Lưu các bài viết yêu thích và đọc lại bất cứ lúc nào, kể cả khi offline."
+                android:textSize="14sp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:gravity="center"
+                android:layout_marginTop="8dp" />
+
+            <Button
+                android:id="@+id/btnGoLogin"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Đăng nhập ngay"
+                android:layout_marginTop="20dp" />
+
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Danh sách bài đã lưu -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/savedRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="80dp"
+            android:visibility="gone" />
+
+        <!-- Chưa có bài lưu -->
+        <TextView
+            android:id="@+id/savedTvEmpty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:textSize="15sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+</LinearLayout>

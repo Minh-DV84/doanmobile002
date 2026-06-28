@@ -1,7 +1,93 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#C0C0C0">
+
+    <!-- Toolbar -->
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/msToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="#1877F2"
+        android:elevation="4dp"
+        app:titleTextColor="#FFFFFF" />
+
+    <!-- Thanh trạng thái: cờ - mặt cười - đồng hồ (giống bản gốc) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#9E9E9E"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="10dp">
+
+        <!-- Đếm cờ -->
+        <TextView
+            android:id="@+id/tvMineCount"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="#1A1A2E"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="🚩 10"
+            android:textColor="#FF3D3D"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace" />
+
+        <!-- Mặt cười - bấm để chơi lại -->
+        <TextView
+            android:id="@+id/tvSmiley"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_smiley_button"
+            android:gravity="center"
+            android:text="🙂"
+            android:textSize="22sp" />
+
+        <!-- Đồng hồ -->
+        <TextView
+            android:id="@+id/tvTimer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="#1A1A2E"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="⏱ 000"
+            android:textColor="#FF3D3D"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace" />
+
+    </LinearLayout>
+
+    <!-- Bàn cờ — cuộn được nếu Hard (16x16) -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <GridLayout
+                android:id="@+id/msBoardGrid"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:background="#808080"
+                android:padding="2dp" />
+
+        </HorizontalScrollView>
+    </ScrollView>
 
 </LinearLayout>

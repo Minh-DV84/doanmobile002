@@ -1,6 +1,176 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-             android:layout_width="match_parent"
-             android:layout_height="match_parent">
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F6FA"
+    android:fillViewport="true">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="48dp"
+        android:paddingBottom="32dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="KaBar"
+            android:textColor="#1877F2"
+            android:textSize="32sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="28dp"
+            android:text="Tạo tài khoản mới"
+            android:textColor="#9E9E9E"
+            android:textSize="14sp" />
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="6dp"
+            app:cardBackgroundColor="#FFFFFF">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <!-- Họ tên -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilName"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Họ và tên"
+                    app:startIconDrawable="@drawable/ic_profile"
+                    app:boxCornerRadiusTopStart="12dp"
+                    app:boxCornerRadiusTopEnd="12dp"
+                    app:boxCornerRadiusBottomStart="12dp"
+                    app:boxCornerRadiusBottomEnd="12dp">
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPersonName"
+                        android:imeOptions="actionNext" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Email -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilEmail"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:hint="Email"
+                    app:startIconDrawable="@drawable/ic_email"
+                    app:boxCornerRadiusTopStart="12dp"
+                    app:boxCornerRadiusTopEnd="12dp"
+                    app:boxCornerRadiusBottomStart="12dp"
+                    app:boxCornerRadiusBottomEnd="12dp">
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etEmail"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textEmailAddress"
+                        android:imeOptions="actionNext" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Mật khẩu -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilPassword"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:hint="Mật khẩu"
+                    app:startIconDrawable="@drawable/ic_lock"
+                    app:passwordToggleEnabled="true"
+                    app:boxCornerRadiusTopStart="12dp"
+                    app:boxCornerRadiusTopEnd="12dp"
+                    app:boxCornerRadiusBottomStart="12dp"
+                    app:boxCornerRadiusBottomEnd="12dp">
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etPassword"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword"
+                        android:imeOptions="actionNext" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Xác nhận mật khẩu -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilConfirm"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:hint="Xác nhận mật khẩu"
+                    app:startIconDrawable="@drawable/ic_lock"
+                    app:passwordToggleEnabled="true"
+                    app:boxCornerRadiusTopStart="12dp"
+                    app:boxCornerRadiusTopEnd="12dp"
+                    app:boxCornerRadiusBottomStart="12dp"
+                    app:boxCornerRadiusBottomEnd="12dp">
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etConfirm"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword"
+                        android:imeOptions="actionDone" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Nút đăng ký -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRegister"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="24dp"
+                    android:text="Tạo tài khoản"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFFFFF"
+                    app:backgroundTint="#1877F2"
+                    app:cornerRadius="12dp" />
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Đã có tài khoản? "
+                android:textColor="#9E9E9E"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tvLogin"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Đăng nhập"
+                android:textColor="#1877F2"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

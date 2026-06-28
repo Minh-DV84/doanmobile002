@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        Theme dành riêng cho màn hình khởi động (splash).
+        Áp dụng cho MainActivity TRƯỚC khi setContentView() được gọi.
+        Sau đó MainActivity tự đổi lại theme chính (Theme.Doanmobile002) bằng
+        SplashScreen.installSplashScreen(this) + setTheme(R.style.Theme_Doanmobile002).
+    -->
+    <style name="Theme.Doanmobile002.Splash" parent="Theme.SplashScreen">
+        <!-- Màu nền splash -->
+        <item name="windowSplashScreenBackground">#1877F2</item>
+
+        <!-- Logo KaBar chính thức: chữ K cách điệu, nhánh trên hóa tia chớp -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_kabar_logo</item>
+
+        <!-- Theme app chính sau khi splash kết thúc -->
+        <item name="postSplashScreenTheme">@style/Theme.Doanmobile002</item>
+    </style>
+
+</resources>

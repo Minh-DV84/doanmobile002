@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Logo KaBar: chữ K cách điệu, nhánh trên hóa thành tia chớp (gợi dáng số 3),
+    nhánh dưới giữ nguyên nét K. Dùng làm:
+      - Icon app (qua mipmap-anydpi-v26/ic_launcher.xml, lớp foreground)
+      - Logo splash screen (themes_splash.xml)
+    ViewBox 140x140 khớp 1:1 với bản thiết kế đã chốt (đệm an toàn quanh viền).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="140dp"
+    android:height="140dp"
+    android:viewportWidth="140"
+    android:viewportHeight="140">
+
+    <!-- Nhánh dọc + nhánh dưới chữ K (màu trắng) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="9.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M47,28 L47,100 M47,64 L80,100" />
+
+    <!-- Nhánh trên chữ K hóa tia chớp (màu cam, gợi dáng số 3) -->
+    <path
+        android:fillColor="#FF6F00"
+        android:pathData="M47,64 L80,28 L68,28 L94,13 L72,46 L85,46 Z" />
+
+</vector>

@@ -1,3 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Facebook App ID của bạn -->
+    <string name="facebook_app_id">987297027225114</string>
+    <string name="fb_login_protocol_scheme">fb987297027225114</string>
+    <string name="facebook_client_token">383067f75149550f89d64d928b62e2e5</string>
 </resources>

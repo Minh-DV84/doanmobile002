@@ -5,11 +5,7 @@ plugins {
 
 android {
     namespace = "com.example.doanmobile002"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.doanmobile002"
@@ -17,7 +13,6 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -46,22 +41,23 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
-    implementation(platform("com.google.firebase:firebase-bom:34.13.0"))
-
+    // Firebase BOM — quản lý version tự động
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-analytics")
-
     implementation("com.google.firebase:firebase-auth")
 
+    // Google Sign-In
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("com.google.android.gms:play-services-auth:21.2.0")
-    // Retrofit + Gson (gọi NewsAPI)
+
+    // Retrofit + Gson
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
-    // Glide (load ảnh từ URL)
+    // Glide
     implementation("com.github.bumptech.glide:glide:4.16.0")
     annotationProcessor("com.github.bumptech.glide:compiler:4.16.0")
 
@@ -79,5 +75,16 @@ dependencies {
     // Fragment
     implementation("androidx.fragment:fragment:1.8.1")
 
+    // Jsoup
     implementation("org.jsoup:jsoup:1.17.2")
+
+    // Room Database
+    implementation("androidx.room:room-runtime:2.6.1")
+    annotationProcessor("androidx.room:room-compiler:2.6.1")
+
+    implementation("androidx.gridlayout:gridlayout:1.0.0")
+
+    // Splash Screen (mượt, không giật khi khởi động app)
+    implementation("androidx.core:core-splashscreen:1.0.1")
+
 }

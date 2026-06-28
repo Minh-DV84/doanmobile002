@@ -23,8 +23,8 @@
         -->
         <ImageView
             android:id="@+id/imgThumb"
-            android:layout_width="100dp"
-            android:layout_height="90dp"
+            android:layout_width="120dp"
+            android:layout_height="110dp"
             android:scaleType="centerCrop"
             android:background="@drawable/placeholder_news"
             android:contentDescription="Thumbnail" />
@@ -46,7 +46,7 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:textColor="#1A1A2E"
-                android:textSize="14sp"
+                android:textSize="16sp"
                 android:textStyle="bold"
                 android:maxLines="3"
                 android:ellipsize="end"
@@ -75,6 +75,20 @@
                     android:ellipsize="end" />
 
                 <!--
+                    ID phải là:  btnCardSave
+                    Java dùng:   itemView.findViewById(R.id.btnCardSave)
+                    Đặt trước tvCardTime, ngang hàng bên phải dưới cùng
+                -->
+                <ImageView
+                    android:id="@+id/btnCardSave"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_marginEnd="6dp"
+                    android:src="@drawable/ic_bookmark_outline"
+                    app:tint="#9E9E9E"
+                    android:contentDescription="Lưu bài viết" />
+
+                <!--
                     ID phải là:  tvCardTime
                     Java dùng:   itemView.findViewById(R.id.tvCardTime)
                 -->
@@ -83,7 +97,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="#9E9E9E"
-                    android:textSize="11sp"
+                    android:textSize="13sp"
                     android:drawableStart="@drawable/ic_time"
                     android:drawablePadding="3dp"
                     android:gravity="center_vertical" />

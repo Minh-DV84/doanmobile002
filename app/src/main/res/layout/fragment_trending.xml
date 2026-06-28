@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/trendingSwipeRefresh"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurface">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🔥 Xu hướng hôm nay"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface"
+                android:paddingHorizontal="16dp"
+                android:paddingTop="16dp"
+                android:paddingBottom="8dp" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/trendingRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingBottom="80dp" />
+        </LinearLayout>
+
+        <!-- Loading -->
+        <ProgressBar
+            android:id="@+id/trendingProgressBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+
+        <!-- Empty / Error -->
+        <TextView
+            android:id="@+id/trendingTvError"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="15sp"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
