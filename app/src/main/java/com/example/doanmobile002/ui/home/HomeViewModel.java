@@ -85,7 +85,7 @@ public class HomeViewModel extends AndroidViewModel {
 
         newsRepo.syncHomeNews(new NewsRepository.StatusCallback() {
             @Override public void onOnline() {
-                // Đang fetch — spinner vẫn quay, LiveData sẽ tự cập nhật khi xong
+                // Đang fetch dữ liệu ẩn dưới nền, ta có thể giữ spinner chạy
             }
             @Override public void onOffline() {
                 isLoadingLiveData.postValue(false);
@@ -96,11 +96,11 @@ public class HomeViewModel extends AndroidViewModel {
                 isLoadingLiveData.postValue(false);
                 errorLiveData.postValue(msg);
             }
+            @Override public void onSuccessComplete() {
+                // Tắt loading ngay lập tức khi việc parse và ghi DB hoàn tất
+                isLoadingLiveData.postValue(false);
+            }
         });
-
-        // Tắt spinner sau 3s (RSS không có callback "xong" rõ ràng)
-        new android.os.Handler(android.os.Looper.getMainLooper())
-                .postDelayed(() -> isLoadingLiveData.postValue(false), 3000);
     }
 
     /** Tìm kiếm */

@@ -114,7 +114,6 @@ public class HomeFragment extends Fragment {
         adapter = new NewsAdapter(requireContext());
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
         recyclerView.setAdapter(adapter);
-        recyclerView.setNestedScrollingEnabled(false);
     }
 
     private void setupSearch() {

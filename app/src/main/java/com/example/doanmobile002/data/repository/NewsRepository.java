@@ -57,6 +57,7 @@ public class NewsRepository {
         void onOffline();
         void onOnline();
         void onError(String msg);
+        default void onSuccessComplete() {}
     }
 
     public interface SavedStateCallback {
@@ -83,6 +84,7 @@ public class NewsRepository {
         return Transformations.map(dao.getHistoryArticles(), this::mapEntityList);
     }
 
+    // ── Fetch trang chủ từ RSS → lưu Room ───────────────────────────────────
     // ── Fetch trang chủ từ RSS → lưu Room ───────────────────────────────────
     public void syncHomeNews(StatusCallback status) {
         if (!isOnline()) {
@@ -113,6 +115,9 @@ public class NewsRepository {
                         executor.execute(() -> {
                             dao.clearHomeCache();
                             dao.insertAll(mapArticleList(combined, "home"));
+
+                            // Dữ liệu đã lưu vào DB thành công -> tắt loading một cách chính xác
+                            mainHandler.post(status::onSuccessComplete);
                         });
                     } else {
                         mainHandler.post(() -> status.onError("Không tải được tin tức mới"));
