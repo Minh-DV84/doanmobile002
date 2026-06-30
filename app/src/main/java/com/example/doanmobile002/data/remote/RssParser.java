@@ -34,6 +34,11 @@ public class RssParser {
             conn.setConnectTimeout(TIMEOUT_MS);
             conn.setReadTimeout(TIMEOUT_MS);
             conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+            // Chặn cache để mỗi lần gọi (đặc biệt khi pull-to-refresh) đều
+            // lấy bản mới nhất từ server, không trả lại response cũ đã cache
+            conn.setUseCaches(false);
+            conn.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0");
+            conn.setRequestProperty("Pragma", "no-cache");
             conn.connect();
 
             InputStream is = conn.getInputStream();

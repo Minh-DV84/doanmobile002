@@ -126,7 +126,7 @@ public class RssSearchEngine {
                 ? removeDiacritics(article.getDescription().toLowerCase()) : "";
 
         for (String kw : keywords) {
-            if (title.contains(kw) || desc.contains(kw)) return true;
+            if (title.contains(kw))   return true;
         }
         return false;
     }

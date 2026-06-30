@@ -2,9 +2,13 @@ package com.example.doanmobile002;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.MenuItem;
 import android.widget.ImageView;
+import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.splashscreen.SplashScreen;
@@ -29,16 +33,38 @@ public class MainActivity extends AppCompatActivity {
     private ImageView            btnProfile;
     private FirebaseAuth         firebaseAuth;
 
+    // Biến cờ để kiểm tra xem người dùng đã nhấn nút Back lần 1 chưa
+    private boolean doubleBackToExitPressedOnce = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // Phải gọi TRƯỚC super.onCreate() và setContentView().
-        // Tự động đổi theme từ Theme.Doanmobile002.Splash sang
-        // Theme.Doanmobile002 (khai báo qua postSplashScreenTheme trong manifest).
         SplashScreen.installSplashScreen(this);
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // ── XỬ LÝ SỰ KIỆN VUỐT/NHẤN BACK 2 LẦN ĐỂ THOÁT ──
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (doubleBackToExitPressedOnce) {
+                    // Nếu đã nhấn 1 lần rồi và nhấn thêm lần nữa trong vòng 2 giây -> Thoát app hoàn toàn
+                    finishAffinity();
+                    return;
+                }
+
+                // Đánh dấu là đã nhấn lần 1
+                doubleBackToExitPressedOnce = true;
+                // Cài đặt thời gian đếm ngược 2 giây (2000 ms)
+                // Nếu sau 2 giây không nhấn nữa thì reset lại biến cờ về false
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    doubleBackToExitPressedOnce = false;
+                }, 2000);
+            }
+        });
+
+        // Ánh xạ View
         firebaseAuth = FirebaseAuth.getInstance();
         btnProfile   = findViewById(R.id.btnProfile);
         bottomNav    = findViewById(R.id.bottomNavigation);

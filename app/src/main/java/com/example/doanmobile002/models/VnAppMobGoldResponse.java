@@ -5,14 +5,16 @@ import java.util.List;
 
 /**
  * Response từ https://api.vnappmob.com/api/v2/gold/sjc
+ *
+ * Theo tài liệu chính thức (https://vapi.vnappmob.com/gold.v2.html),
+ * endpoint SJC trả về field "buy_1l" / "sell_1l" (giá vàng SJC 1 lượng),
+ * KHÔNG PHẢI "buy_hcm"/"sell_hcm" (field đó chỉ dùng cho DOJI/PNJ).
+ *
  * {
  *   "results": [
  *     {
- *       "buy_hcm": 119500000,
- *       "sell_hcm": 121800000,
- *       "buy_hn":  119500000,
- *       "sell_hn": 121800000,
- *       "updated": "2025-05-15T09:00:00"
+ *       "buy_1l":  119500000.00,
+ *       "sell_1l": 121800000.00
  *     }
  *   ]
  * }
@@ -26,25 +28,13 @@ public class VnAppMobGoldResponse {
 
     public static class GoldResult {
 
-        @SerializedName("buy_hcm")
-        private double buyHcm;
+        @SerializedName("buy_1l")
+        private double buy1l;
 
-        @SerializedName("sell_hcm")
-        private double sellHcm;
+        @SerializedName("sell_1l")
+        private double sell1l;
 
-        @SerializedName("buy_hn")
-        private double buyHn;
-
-        @SerializedName("sell_hn")
-        private double sellHn;
-
-        @SerializedName("updated")
-        private String updated;
-
-        public double getBuyHcm()   { return buyHcm; }
-        public double getSellHcm()  { return sellHcm; }
-        public double getBuyHn()    { return buyHn; }
-        public double getSellHn()   { return sellHn; }
-        public String getUpdated()  { return updated; }
+        public double getBuy1l()  { return buy1l; }
+        public double getSell1l() { return sell1l; }
     }
 }

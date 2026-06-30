@@ -7,42 +7,39 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Lấy giá xăng mới nhất bằng cách parse RSS VnExpress chủ đề giá xăng.
- * Không cần API key, cập nhật ngay sau mỗi kỳ điều chỉnh (~1 tuần/lần).
+ * Lấy giá xăng E10 RON95-III mới nhất bằng cách scrape bảng giá tại baomoi.com
+ * (nguồn: giaxanghomnay.com, cập nhật theo mỗi kỳ điều hành của Petrolimex).
  *
- * Chiến lược:
- *  1. Lấy RSS https://vnexpress.net/rss/kinh-doanh/hang-hoa.rss
- *  2. Tìm bài đầu tiên có title chứa "giá xăng"
- *  3. Regex extract giá RON 95 từ description
- *  4. Fallback: trả về null → caller dùng giá static
+ * Trang hiển thị 1 bảng HTML <table> rõ ràng dạng:
+ *   <tr><td>Xăng E10 RON 95-III</td><td>19,910</td><td>20,300</td></tr>
+ * → dễ parse hơn nhiều so với trang dạng card/div lồng nhau.
+ *
+ * Từ 1/6/2026: E10 RON95-III thay thế hoàn toàn RON95-III khoáng trên toàn quốc.
  */
 public class PetrolRssParser {
 
-    // RSS kinh doanh/hàng hóa của VnExpress — luôn có tin giá xăng sau mỗi kỳ điều chỉnh
-    private static final String RSS_URL    = "https://vnexpress.net/rss/kinh-doanh/hang-hoa.rss";
-    private static final int    TIMEOUT_MS = 8_000;
+    private static final String URL_BAOMOI   = "https://baomoi.com/tien-ich-gia-xang-dau.epi";
+    private static final int    TIMEOUT_MS   = 8_000;
 
     public static class PetrolPrice {
-        public final String ron95;   // e.g. "20,827"
-        public final String e5ron92; // e.g. "19,979"
-        public final String updateNote; // e.g. "Cập nhật từ VnExpress"
+        public final String e10ron95;   // e.g. "19,910 đ/L" — giá vùng 1
+        public final String updateNote; // e.g. "Nguồn: Petrolimex"
 
-        public PetrolPrice(String ron95, String e5ron92, String updateNote) {
-            this.ron95       = ron95;
-            this.e5ron92     = e5ron92;
-            this.updateNote  = updateNote;
+        public PetrolPrice(String e10ron95, String updateNote) {
+            this.e10ron95   = e10ron95;
+            this.updateNote = updateNote;
         }
     }
 
     /**
-     * Parse RSS và extract giá xăng. Chạy trên background thread.
+     * Scrape giá E10 RON95-III (vùng 1) từ baomoi.com. Chạy trên background thread.
      * @return PetrolPrice hoặc null nếu không lấy được
      */
     public static PetrolPrice fetch() {
         try {
-            String rssContent = downloadText(RSS_URL);
-            if (rssContent == null) return null;
-            return extractFromRss(rssContent);
+            String html = downloadText(URL_BAOMOI);
+            if (html == null) return null;
+            return extractFromHtml(html);
         } catch (Exception e) {
             return null;
         }
@@ -50,89 +47,49 @@ public class PetrolRssParser {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private static PetrolPrice extractFromRss(String rss) {
-        // Tìm item đầu tiên có "giá xăng" trong title (case-insensitive)
-        // Split theo <item> rồi tìm bài phù hợp
-        String[] items = rss.split("<item>");
-        for (int i = 1; i < items.length; i++) {
-            String item = items[i].toLowerCase();
-            if (item.contains("giá xăng") || item.contains("gia xang")
-                    || item.contains("xăng dầu") || item.contains("xang dau")) {
-                return extractPriceFromItem(items[i]);
-            }
+    private static PetrolPrice extractFromHtml(String html) {
+        // Bảng giá có dòng dạng:
+        // <tr>...Xăng E10 RON 95-III...</tr> chứa 2 số giá (vùng 1, vùng 2)
+        // Lấy dòng <tr> chứa "RON 95-III" (ưu tiên) rồi tới "RON 95-V"
+
+        String row = findRowContaining(html, "RON 95-III");
+        if (row == null) {
+            row = findRowContaining(html, "RON95-III");
+        }
+        if (row == null) {
+            // fallback: thử bản V nếu không tìm thấy bản III
+            row = findRowContaining(html, "RON 95-V");
+        }
+        if (row == null) return null;
+
+        // Trong dòng <tr> đó, lấy số đầu tiên dạng XX,XXX hoặc XX.XXX (giá vùng 1)
+        Matcher m = Pattern.compile("([1-9][0-9][.,][0-9]{3})").matcher(row);
+        if (m.find()) {
+            String raw = m.group(1).replace(".", ",");
+            return new PetrolPrice(raw + " đ/L", "Nguồn: Petrolimex");
         }
         return null;
-    }
-
-    private static PetrolPrice extractPriceFromItem(String item) {
-        // Lấy description và title
-        String description = extractTag(item, "description");
-        String title       = extractTag(item, "title");
-        String combined    = (title != null ? title : "") + " " + (description != null ? description : "");
-
-        // Loại bỏ HTML tags
-        combined = combined.replaceAll("<[^>]*>", " ");
-
-        // Pattern tìm giá RON 95: "95" followed by price in VND
-        // e.g. "RON 95-III: 20.827 đồng" hay "xăng RON 95 giảm còn 20,827"
-        String ron95   = findPrice(combined, new String[]{
-                "95[\\s\\-:]+(?:iii|v|ii)?[\\s:]*([0-9]{2}[.,][0-9]{3})",
-                "ron\\s*95[^0-9]*([0-9]{2}[.,][0-9]{3})",
-                "xăng\\s*95[^0-9]*([0-9]{2}[.,][0-9]{3})"
-        });
-
-        String e5ron92 = findPrice(combined, new String[]{
-                "e5[\\s\\-]*ron\\s*92[^0-9]*([0-9]{2}[.,][0-9]{3})",
-                "e5[^0-9]*([0-9]{2}[.,][0-9]{3})",
-                "ron\\s*92[^0-9]*([0-9]{2}[.,][0-9]{3})"
-        });
-
-        if (ron95 == null && e5ron92 == null) return null;
-
-        // Format: thêm "đ/L"
-        return new PetrolPrice(
-                ron95   != null ? formatPrice(ron95)   : null,
-                e5ron92 != null ? formatPrice(e5ron92) : null,
-                "Nguồn: VnExpress"
-        );
     }
 
     /**
-     * Thử từng regex pattern, trả về group(1) của match đầu tiên.
+     * Tìm đoạn <tr>...</tr> đầu tiên có chứa từ khoá cho trước (case-insensitive).
      */
-    private static String findPrice(String text, String[] patterns) {
-        String lower = text.toLowerCase();
-        for (String pat : patterns) {
-            try {
-                Matcher m = Pattern.compile(pat, Pattern.CASE_INSENSITIVE).matcher(lower);
-                if (m.find()) {
-                    return m.group(1);
-                }
-            } catch (Exception ignored) {}
-        }
-        return null;
-    }
+    private static String findRowContaining(String html, String keyword) {
+        String lowerHtml = html.toLowerCase();
+        String lowerKw   = keyword.toLowerCase();
 
-    private static String formatPrice(String raw) {
-        // Chuẩn hoá: thay "." bằng "," nếu cần
-        return raw.replace(".", ",") + " đ/L";
-    }
+        int kwIndex = lowerHtml.indexOf(lowerKw);
+        if (kwIndex < 0) return null;
 
-    private static String extractTag(String xml, String tag) {
-        try {
-            int start = xml.indexOf("<" + tag);
-            if (start < 0) return null;
-            start = xml.indexOf(">", start) + 1;
-            // Handle CDATA
-            if (xml.startsWith("<![CDATA[", start)) start += 9;
-            int end = xml.indexOf("</" + tag + ">", start);
-            if (end < 0) return null;
-            String val = xml.substring(start, end);
-            if (val.endsWith("]]>")) val = val.substring(0, val.length() - 3);
-            return val.trim();
-        } catch (Exception e) {
-            return null;
-        }
+        // Lùi về <tr> gần nhất trước keyword
+        int trStart = lowerHtml.lastIndexOf("<tr", kwIndex);
+        if (trStart < 0) trStart = kwIndex;
+
+        // Tìm </tr> gần nhất sau keyword
+        int trEnd = lowerHtml.indexOf("</tr>", kwIndex);
+        if (trEnd < 0) return null;
+
+        return html.substring(trStart, trEnd + 5);
     }
 
     private static String downloadText(String urlStr) {
@@ -141,8 +98,15 @@ public class PetrolRssParser {
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setConnectTimeout(TIMEOUT_MS);
             conn.setReadTimeout(TIMEOUT_MS);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+            conn.setRequestProperty("User-Agent",
+                    "Mozilla/5.0 (Android) AppleWebKit/537.36");
+            conn.setRequestProperty("Accept-Language", "vi-VN,vi;q=0.9");
             conn.connect();
+
+            if (conn.getResponseCode() != 200) {
+                conn.disconnect();
+                return null;
+            }
 
             InputStream is = conn.getInputStream();
             byte[] buf = new byte[65536];

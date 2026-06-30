@@ -24,6 +24,9 @@ import com.bumptech.glide.Glide;
 import com.example.doanmobile002.R;
 import com.example.doanmobile002.models.WidgetData;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 public class HomeFragment extends Fragment {
 
     private HomeViewModel  viewModel;
@@ -36,7 +39,7 @@ public class HomeFragment extends Fragment {
     private EditText           etSearch;
 
     // Banner offline
-    private View    offlineBanner;
+    private View     offlineBanner;
     private TextView tvOfflineMsg;
 
     // Widget cards
@@ -45,6 +48,11 @@ public class HomeFragment extends Fragment {
     private ImageView imgWeatherIcon;
     private TextView  tvPetrolPrice, tvPetrolType;
     private TextView  tvGoldBuy, tvGoldSell, tvGoldUnit;
+
+    // Hashtag chips
+    private TextView chipThoiSu, chipTheThao, chipKinhTe,
+            chipSucKhoe, chipKhoaHoc, chipTheGioi, chipGiaiTri;
+    private TextView activeChip = null;
 
     @Nullable
     @Override
@@ -63,6 +71,7 @@ public class HomeFragment extends Fragment {
         bindViews(view);
         setupRecyclerView();
         setupSearch();
+        setupHashtags();
         setupSwipeRefresh();
         observeViewModel();
 
@@ -90,6 +99,15 @@ public class HomeFragment extends Fragment {
         tvGoldBuy      = v.findViewById(R.id.tvGoldBuy);
         tvGoldSell     = v.findViewById(R.id.tvGoldSell);
         tvGoldUnit     = v.findViewById(R.id.tvGoldUnit);
+
+        // Hashtag chips
+        chipThoiSu  = v.findViewById(R.id.chipThoiSu);
+        chipTheThao = v.findViewById(R.id.chipTheThao);
+        chipKinhTe  = v.findViewById(R.id.chipKinhTe);
+        chipSucKhoe = v.findViewById(R.id.chipSucKhoe);
+        chipKhoaHoc = v.findViewById(R.id.chipKhoaHoc);
+        chipTheGioi = v.findViewById(R.id.chipTheGioi);
+        chipGiaiTri = v.findViewById(R.id.chipGiaiTri);
     }
 
     private void setupRecyclerView() {
@@ -106,15 +124,73 @@ public class HomeFragment extends Fragment {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 String q = s.toString().trim();
-                if (q.isEmpty()) viewModel.exitSearch();
-                else if (q.length() >= 3) viewModel.searchNews(q);
+                if (q.isEmpty()) {
+                    // Nếu người dùng xoá hết chữ → reset chip + thoát search
+                    setChipActive(null);
+                    viewModel.exitSearch();
+                } else if (q.length() >= 3) {
+                    viewModel.searchNews(q);
+                }
             }
         });
     }
 
+    private void setupHashtags() {
+        // Map chip → từ khoá tìm kiếm
+        Map<TextView, String> chips = new LinkedHashMap<>();
+        chips.put(chipThoiSu,  "thời sự");
+        chips.put(chipTheThao, "thể thao");
+        chips.put(chipKinhTe,  "kinh tế");
+        chips.put(chipSucKhoe, "sức khỏe");
+        chips.put(chipKhoaHoc, "khoa học");
+        chips.put(chipTheGioi, "thế giới");
+        chips.put(chipGiaiTri, "giải trí");
+
+        for (Map.Entry<TextView, String> entry : chips.entrySet()) {
+            TextView chip    = entry.getKey();
+            String   keyword = entry.getValue();
+
+            chip.setOnClickListener(v -> {
+                if (chip == activeChip) {
+                    // Bấm lại chip đang chọn → thoát search
+                    setChipActive(null);
+                    etSearch.setText("");
+                    viewModel.exitSearch();
+                } else {
+                    // Chọn chip mới → search theo từ khoá
+                    setChipActive(chip);
+                    etSearch.setText(keyword);
+                    etSearch.setSelection(keyword.length()); // đặt con trỏ cuối
+                    viewModel.searchNews(keyword);
+                }
+            });
+        }
+    }
+
+    /**
+     * Đặt chip được chọn (active) và reset chip cũ về trạng thái bình thường.
+     * Truyền null để bỏ chọn tất cả.
+     */
+    private void setChipActive(TextView chip) {
+        if (activeChip != null) {
+            activeChip.setBackgroundResource(R.drawable.bg_chip);
+            activeChip.setTextColor(0xFF1877F2);
+        }
+        activeChip = chip;
+        if (chip != null) {
+            chip.setBackgroundResource(R.drawable.bg_chip_active);
+            chip.setTextColor(0xFFFFFFFF);
+        }
+    }
+
     private void setupSwipeRefresh() {
         swipeRefresh.setColorSchemeColors(0xFF1877F2);
-        swipeRefresh.setOnRefreshListener(() -> viewModel.refresh());
+        swipeRefresh.setOnRefreshListener(() -> {
+            // Khi swipe refresh → reset chip + load lại trang chủ
+            setChipActive(null);
+            etSearch.setText("");
+            viewModel.refresh();
+        });
     }
 
     private void observeViewModel() {
@@ -150,7 +226,6 @@ public class HomeFragment extends Fragment {
         viewModel.getToast().observe(getViewLifecycleOwner(), type -> {
             if ("offline".equals(type) && offlineBanner != null) {
                 offlineBanner.setVisibility(View.VISIBLE);
-                // Tự ẩn sau 4 giây
                 offlineBanner.postDelayed(
                         () -> offlineBanner.setVisibility(View.GONE), 4000);
             }

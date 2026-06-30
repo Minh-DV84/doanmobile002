@@ -17,10 +17,8 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import retrofit2.Call;
@@ -32,37 +30,40 @@ import retrofit2.Response;
  *
  *  Card 1 — Thứ/Ngày      → system clock (synchronous)
  *  Card 2 — Thời tiết     → WeatherAPI.com
- *  Card 3 — Giá xăng      → RSS VnExpress (parse tự động, không cần key)
+ *  Card 3 — Giá xăng      → scrape baomoi.com (Petrolimex, không cần key)
  *                           Fallback: giá static gần nhất
- *  Card 4 — Giá vàng SJC  → api.vnappmob.com/api/v2/gold/sjc (cần key)
+ *  Card 4 — Giá vàng SJC  → api.vnappmob.com/api/v2/gold/sjc
  *                           Fallback: giá static gần nhất
  *
- *  Callback onResult() được gọi 1 lần sau khi TẤT CẢ 3 async task hoàn thành
- *  (hoặc timeout sau 10 giây).
+ *  Callback onResult() được gọi 1 lần sau khi TẤT CẢ 3 async task hoàn thành.
+ *
+ *  LƯU Ý — GOLD_BEARER token hết hạn sau 15 NGÀY kể từ lúc lấy.
+ *  Lấy token mới tại: https://vapi.vnappmob.com/api/request_api_key?scope=gold
+ *  rồi paste đè vào GOLD_TOKEN bên dưới (chỉ phần token, không gồm "Bearer ").
  */
 public class WidgetRepository {
 
     private static final String TAG = "WidgetRepository";
 
     // ── Keys ─────────────────────────────────────────────────────────────────
-    // WeatherAPI.com — đăng ký free tại https://www.weatherapi.com/
     private static final String WEATHER_KEY  = "965faee10a044554b7881212261505";
     private static final String WEATHER_CITY = "Ha Noi";
 
-    // VNAppMob Gold SJC — đăng ký free tại:
-    // https://vapi.vnappmob.com/api/request_api_key?scope=gold
-    // Dán key vào đây (format: "Bearer <key>")
-    private static final String GOLD_BEARER  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODAxMzAwMTMsImlhdCI6MTc3ODgzNDAxMywic2NvcGUiOiJnb2xkIiwicGVybWlzc2lvbiI6MH0.dC0zTW-VCGPL5vfnMXOgX261S44H8l-23iHgKrLVxys";
+    // VNAppMob Gold SJC token — hết hạn 15 ngày kể từ lúc lấy.
+    // Lấy token mới tại: https://vapi.vnappmob.com/api/request_api_key?scope=gold
+    private static final String GOLD_TOKEN  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODQxMDU2MDcsImlhdCI6MTc4MjgwOTYwNywic2NvcGUiOiJnb2xkIiwicGVybWlzc2lvbiI6MH0.QU28-_11ga2fL9-81TOnLLHIXswyAGzrpHExYsZPb34";
+
+    // Header chuẩn theo doc VNAppMob: "Authorization: Bearer <token>"
+    private static final String GOLD_BEARER = "Bearer " + GOLD_TOKEN;
 
     // ── Static fallback (cập nhật theo kỳ điều hành thực tế) ─────────────────
-    private static final String FALLBACK_RON95   = "20,827 đ/L";
-    private static final String FALLBACK_E5RON92 = "19,979 đ/L";
+    private static final String FALLBACK_E10RON95  = "19,910 đ/L";
     private static final String FALLBACK_GOLD_BUY  = "119.50";
     private static final String FALLBACK_GOLD_SELL = "121.80";
 
     private final WeatherApiService weatherApi;
     private final GoldApiService    goldApi;
-    private final ExecutorService   executor = Executors.newFixedThreadPool(3);
+    private final ExecutorService   executor    = Executors.newFixedThreadPool(3);
     private final Handler           mainHandler = new Handler(Looper.getMainLooper());
 
     public interface WidgetCallback {
@@ -84,7 +85,6 @@ public class WidgetRepository {
         buildDayCard(data);
 
         // 3 tác vụ async chạy song song
-        // Dùng AtomicInteger đếm ngược — khi về 0 thì callback
         AtomicInteger pending = new AtomicInteger(3);
         Runnable checkDone = () -> {
             if (pending.decrementAndGet() == 0) {
@@ -117,8 +117,8 @@ public class WidgetRepository {
                     public void onResponse(Call<WeatherResponse> call,
                                            Response<WeatherResponse> response) {
                         if (response.isSuccessful() && response.body() != null) {
-                            WeatherResponse wr  = response.body();
-                            WeatherResponse.Current cur = wr.getCurrent();
+                            WeatherResponse wr   = response.body();
+                            WeatherResponse.Current  cur = wr.getCurrent();
                             WeatherResponse.Location loc = wr.getLocation();
                             data.setWeatherCity(loc != null ? loc.getName() : WEATHER_CITY);
                             data.setWeatherTemp((int) cur.getTempC() + "°C");
@@ -149,33 +149,30 @@ public class WidgetRepository {
         data.setWeatherDesc("Không lấy được");
     }
 
-    // ── Card 3: Giá xăng (RSS VnExpress, background thread) ──────────────────
+    // ── Card 3: Giá xăng E10 RON95-III (scrape baomoi.com) ───────────────────
 
     private void fetchPetrol(WidgetData data, Runnable onDone) {
         executor.execute(() -> {
             try {
                 PetrolRssParser.PetrolPrice price = PetrolRssParser.fetch();
-                if (price != null && price.ron95 != null) {
-                    data.setPetrolPrice(price.ron95);
-                    data.setPetrolDate("RON 95  •  " + price.updateNote);
-                } else if (price != null && price.e5ron92 != null) {
-                    data.setPetrolPrice(price.e5ron92);
-                    data.setPetrolDate("E5 RON 92  •  " + price.updateNote);
+                if (price != null && price.e10ron95 != null) {
+                    data.setPetrolPrice(price.e10ron95);
+                    data.setPetrolDate("E10 RON95  •  " + price.updateNote);
                 } else {
-                    // Fallback static
-                    data.setPetrolPrice(FALLBACK_RON95);
-                    data.setPetrolDate("RON 95  •  Giá tham khảo");
+                    data.setPetrolPrice(FALLBACK_E10RON95);
+                    data.setPetrolDate("E10 RON95  •  Giá tham khảo");
                 }
             } catch (Exception e) {
                 Log.w(TAG, "Petrol fetch failed: " + e.getMessage());
-                data.setPetrolPrice(FALLBACK_RON95);
-                data.setPetrolDate("RON 95  •  Giá tham khảo");
+                data.setPetrolPrice(FALLBACK_E10RON95);
+                data.setPetrolDate("E10 RON95  •  Giá tham khảo");
             }
             onDone.run();
         });
     }
 
     // ── Card 4: Giá vàng SJC (VNAppMob API) ──────────────────────────────────
+    // Endpoint /api/v2/gold/sjc trả field "buy_1l" / "sell_1l" (giá theo lượng)
 
     private void fetchGold(WidgetData data, Runnable onDone) {
         goldApi.getSjcGoldPrice(GOLD_BEARER)
@@ -190,13 +187,14 @@ public class WidgetRepository {
 
                             VnAppMobGoldResponse.GoldResult r =
                                     response.body().getResults().get(0);
-
-                            // Chuyển từ đồng → triệu đồng, format 1 chữ số thập phân
-                            data.setGoldBuy(formatMillions(r.getBuyHcm()));
-                            data.setGoldSell(formatMillions(r.getSellHcm()));
-                            data.setGoldUnit("triệu đ/lượng  •  SJC HCM");
+                            data.setGoldBuy(formatMillions(r.getBuy1l()));
+                            data.setGoldSell(formatMillions(r.getSell1l()));
+                            data.setGoldUnit("triệu đ/lượng  •  SJC");
 
                         } else {
+                            Log.w(TAG, "Gold response not successful: code="
+                                    + response.code()
+                                    + " body=" + (response.body() != null));
                             setGoldFallback(data);
                         }
                         onDone.run();
@@ -220,11 +218,15 @@ public class WidgetRepository {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
-     * Chuyển giá (đồng) sang triệu đồng với 2 chữ số thập phân.
-     * Ví dụ: 119500000.0 → "119.50"
+     * Chuyển giá (đồng) sang triệu đồng, LUÔN hiển thị đủ 2 chữ số thập phân
+     * và dùng dấu phẩy kiểu Việt Nam thay vì dấu chấm.
+     * Ví dụ: 145000000.0 → "145,00"   (không bị rút gọn thành "145")
+     *        119500000.0 → "119,50"
      */
     private String formatMillions(double value) {
         double millions = value / 1_000_000.0;
-        return new DecimalFormat("###.##").format(millions);
+        DecimalFormat df = new DecimalFormat("0.00",
+                new java.text.DecimalFormatSymbols(new Locale("vi", "VN")));
+        return df.format(millions);   // pattern "0.00" luôn giữ đủ 2 số thập phân
     }
 }
