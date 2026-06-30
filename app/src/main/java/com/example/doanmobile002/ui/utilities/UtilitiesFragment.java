@@ -14,34 +14,52 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.doanmobile002.R;
+import com.example.doanmobile002.models.NewsArticle;
 import com.example.doanmobile002.ui.login.LoginActivity;
 import com.example.doanmobile002.utils.FontSizeManager;
 import com.google.android.material.slider.Slider;
+import com.google.android.material.tabs.TabLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
+import java.util.List;
+
 public class UtilitiesFragment extends Fragment {
 
-    private UtilitiesViewModel viewModel;
-    private SavedNewsAdapter   adapter;
+    private static final int TAB_SAVED   = 0;
+    private static final int TAB_HISTORY = 1;
 
-    // Các View cho Bài viết đã lưu
+    private UtilitiesViewModel viewModel;
+    private SavedNewsAdapter   savedAdapter;
+    private HistoryNewsAdapter historyAdapter;
+
+    // Vùng nội dung dùng chung cho cả 2 tab
     private RecyclerView recyclerView;
     private TextView     tvEmpty;
     private View         layoutLoginPrompt;
     private Button       btnGoLogin;
+    private TabLayout    tabSavedHistory;
+    private TextView     btnClearHistory;
 
-    // Các View cho Cỡ chữ (dùng thanh trượt % thay vì nút bấm)
+    // Cỡ chữ
     private TextView tvFontPreview;
     private TextView tvFontPercent;
     private Slider   sliderFontSize;
 
     private FirebaseAuth firebaseAuth;
+    private int          currentTab = TAB_SAVED;
+
+    // Giữ tham chiếu observer hiện tại để gỡ đúng cái khi đổi tab,
+    // tránh observe trùng 2 LiveData cùng lúc gây lag/giật UI.
+    private Observer<List<NewsArticle>> activeObserver;
+    private LiveData<List<NewsArticle>> activeLiveData;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -62,97 +80,133 @@ public class UtilitiesFragment extends Fragment {
 
         bindViews(view);
         setupFontSizeCard();
-        setupRecyclerView();
-        checkLoginState();
+        setupAdapters();
+        setupTabs();
+        switchToTab(TAB_SAVED);   // mặc định mở tab Đã lưu
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        checkLoginState();
-        // Cập nhật lại UI cỡ chữ (nhỡ user đổi ở màn hình khác hoặc xóa data)
+        // Cập nhật lại UI cỡ chữ
         int currentPercent = FontSizeManager.getFontPercent(requireContext());
-        if (sliderFontSize != null) {
-            sliderFontSize.setValue(currentPercent);
-        }
+        if (sliderFontSize != null) sliderFontSize.setValue(currentPercent);
         refreshFontUI(currentPercent);
+
+        // Re-check login khi quay lại tab Đã lưu (sau khi đăng nhập ở màn khác)
+        if (currentTab == TAB_SAVED) updateSavedTabVisibility();
     }
 
     // ── Bind views ────────────────────────────────────────────────────────────
 
     private void bindViews(View v) {
-        // Ánh xạ bài đã lưu
         recyclerView      = v.findViewById(R.id.savedRecyclerView);
         tvEmpty           = v.findViewById(R.id.savedTvEmpty);
         layoutLoginPrompt = v.findViewById(R.id.layoutLoginPrompt);
         btnGoLogin        = v.findViewById(R.id.btnGoLogin);
+        tabSavedHistory   = v.findViewById(R.id.tabSavedHistory);
+        btnClearHistory   = v.findViewById(R.id.btnClearHistory);
 
-        // Ánh xạ cỡ chữ (Slider)
         tvFontPreview  = v.findViewById(R.id.tvFontPreview);
         tvFontPercent  = v.findViewById(R.id.tvFontPercent);
         sliderFontSize = v.findViewById(R.id.sliderFontSize);
     }
 
-    // ── Font Size Card (Slider) ───────────────────────────────────────────────
+    // ── Font Size Card (giữ nguyên không đổi) ───────────────────────────────
 
     private void setupFontSizeCard() {
-        // Lấy % hiện tại (mặc định 100%)
         int currentPercent = FontSizeManager.getFontPercent(requireContext());
-
-        // Cài đặt giá trị ban đầu cho Slider
         sliderFontSize.setValue(currentPercent);
         refreshFontUI(currentPercent);
 
-        // Lắng nghe sự kiện kéo thả Slider
         sliderFontSize.addOnChangeListener((slider, value, fromUser) -> {
             int percent = (int) value;
-            // Lưu mức phần trăm mới vào SharedPreferences
             FontSizeManager.setFontPercent(requireContext(), percent);
-            // Cập nhật giao diện
             refreshFontUI(percent);
         });
     }
 
-    /**
-     * Cập nhật văn bản % và kích thước text preview mô phỏng theo phần trăm.
-     */
     private void refreshFontUI(int percent) {
         if (tvFontPreview == null || tvFontPercent == null) return;
-
-        // Cập nhật text badge (Ví dụ: "120%")
         tvFontPercent.setText(FontSizeManager.getLabel(percent));
-
-        // Mô phỏng cỡ chữ thay đổi. Giả sử cỡ gốc là 16sp.
-        // Công thức: Cỡ gốc * (phần trăm / 100)
         float baseSizeSp = 16f;
-        float newSizeSp = baseSizeSp * (percent / 100f);
-
-        // Áp dụng cỡ chữ đã quy đổi vào Preview Text
+        float newSizeSp  = baseSizeSp * (percent / 100f);
         tvFontPreview.setTextSize(TypedValue.COMPLEX_UNIT_SP, newSizeSp);
     }
 
-    // ── RecyclerView bài đã lưu ───────────────────────────────────────────────
+    // ── Adapters ──────────────────────────────────────────────────────────────
 
-    private void setupRecyclerView() {
-        adapter = new SavedNewsAdapter(requireContext(), article ->
+    private void setupAdapters() {
+        savedAdapter = new SavedNewsAdapter(requireContext(), article ->
                 new AlertDialog.Builder(requireContext())
                         .setTitle("Bỏ lưu bài viết?")
                         .setMessage(article.getTitle())
                         .setPositiveButton("Bỏ lưu", (d, w) -> {
                             viewModel.unsaveArticle(article);
-                            Toast.makeText(requireContext(),
-                                    "Đã bỏ lưu", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(requireContext(), "Đã bỏ lưu", Toast.LENGTH_SHORT).show();
                         })
                         .setNegativeButton("Hủy", null)
                         .show()
         );
+
+        historyAdapter = new HistoryNewsAdapter(requireContext(), article -> {
+            viewModel.removeFromHistory(article);
+            Toast.makeText(requireContext(), "Đã xóa khỏi lịch sử", Toast.LENGTH_SHORT).show();
+        });
+
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
-        recyclerView.setAdapter(adapter);
     }
 
-    // ── Login state ───────────────────────────────────────────────────────────
+    // ── Tabs ──────────────────────────────────────────────────────────────────
 
-    private void checkLoginState() {
+    private void setupTabs() {
+        tabSavedHistory.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
+            @Override public void onTabSelected(TabLayout.Tab tab) {
+                switchToTab(tab.getPosition());
+            }
+            @Override public void onTabUnselected(TabLayout.Tab tab) {}
+            @Override public void onTabReselected(TabLayout.Tab tab) {}
+        });
+
+        btnClearHistory.setOnClickListener(v ->
+                new AlertDialog.Builder(requireContext())
+                        .setTitle("Xóa toàn bộ lịch sử?")
+                        .setMessage("Các bài đã lưu (❤) sẽ không bị ảnh hưởng.")
+                        .setPositiveButton("Xóa", (d, w) -> {
+                            viewModel.clearAllHistory();
+                            Toast.makeText(requireContext(), "Đã xóa lịch sử", Toast.LENGTH_SHORT).show();
+                        })
+                        .setNegativeButton("Hủy", null)
+                        .show());
+    }
+
+    /**
+     * Chuyển nội dung RecyclerView giữa 2 tab: gỡ observer cũ, gắn observer mới,
+     * đổi adapter, và cập nhật trạng thái UI (login prompt / nút xóa lịch sử).
+     */
+    private void switchToTab(int tab) {
+        currentTab = tab;
+
+        // Gỡ observer LiveData cũ trước khi gắn cái mới, tránh leak / double-update
+        if (activeLiveData != null && activeObserver != null) {
+            activeLiveData.removeObserver(activeObserver);
+        }
+
+        if (tab == TAB_SAVED) {
+            btnClearHistory.setVisibility(View.GONE);
+            recyclerView.setAdapter(savedAdapter);
+            updateSavedTabVisibility();
+        } else {
+            layoutLoginPrompt.setVisibility(View.GONE);
+            recyclerView.setVisibility(View.VISIBLE);
+            recyclerView.setAdapter(historyAdapter);
+            observeHistory();
+        }
+    }
+
+    // ── Tab "Đã lưu" ─────────────────────────────────────────────────────────
+
+    private void updateSavedTabVisibility() {
         FirebaseUser user = firebaseAuth.getCurrentUser();
         if (user == null) {
             recyclerView.setVisibility(View.GONE);
@@ -163,21 +217,43 @@ public class UtilitiesFragment extends Fragment {
         } else {
             layoutLoginPrompt.setVisibility(View.GONE);
             recyclerView.setVisibility(View.VISIBLE);
-            observeSavedArticles();
+            observeSaved();
         }
     }
 
-    private void observeSavedArticles() {
-        viewModel.getSavedArticles().observe(getViewLifecycleOwner(), articles -> {
+    private void observeSaved() {
+        activeLiveData = viewModel.getSavedArticles();
+        activeObserver = articles -> {
             if (articles != null && !articles.isEmpty()) {
-                adapter.setArticles(articles);
+                savedAdapter.setArticles(articles);
                 tvEmpty.setVisibility(View.GONE);
                 recyclerView.setVisibility(View.VISIBLE);
             } else {
-                adapter.setArticles(null);
+                savedAdapter.setArticles(null);
                 tvEmpty.setText("Bạn chưa lưu bài viết nào.\nBấm ❤ trên bài viết để lưu.");
                 tvEmpty.setVisibility(View.VISIBLE);
             }
-        });
+        };
+        activeLiveData.observe(getViewLifecycleOwner(), activeObserver);
+    }
+
+    // ── Tab "Lịch sử" ────────────────────────────────────────────────────────
+
+    private void observeHistory() {
+        activeLiveData = viewModel.getHistoryArticles();
+        activeObserver = articles -> {
+            if (articles != null && !articles.isEmpty()) {
+                historyAdapter.setArticles(articles);
+                tvEmpty.setVisibility(View.GONE);
+                recyclerView.setVisibility(View.VISIBLE);
+                btnClearHistory.setVisibility(View.VISIBLE);
+            } else {
+                historyAdapter.setArticles(null);
+                tvEmpty.setText("Bạn chưa đọc bài viết nào.\nCác bài bạn mở sẽ hiện ở đây, kể cả khi offline.");
+                tvEmpty.setVisibility(View.VISIBLE);
+                btnClearHistory.setVisibility(View.GONE);
+            }
+        };
+        activeLiveData.observe(getViewLifecycleOwner(), activeObserver);
     }
 }

@@ -1,10 +1,12 @@
 package com.example.doanmobile002.ui.detail;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.net.Uri;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.view.View;
 import android.webkit.WebChromeClient;
@@ -14,12 +16,14 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
+import com.bumptech.glide.Glide;
 import com.example.doanmobile002.R;
 import com.example.doanmobile002.data.repository.NewsRepository;
 import com.example.doanmobile002.models.NewsArticle;
@@ -33,14 +37,17 @@ public class DetailActivity extends AppCompatActivity {
     public static final String EXTRA_SOURCE       = "extra_source";
     public static final String EXTRA_IMAGE        = "extra_image";
     public static final String EXTRA_PUBLISHED_AT = "extra_published_at";
+    public static final String EXTRA_DESCRIPTION  = "extra_description";
 
     private WebView        webView;
     private ProgressBar    progressBar;
+    private View           offlineLayout;
     private String         articleUrl;
     private String         articleTitle;
     private String         articleSource;
     private String         articleImage;
     private String         articlePublishedAt;
+    private String         articleDescription;
 
     private ImageView      btnSave;
     private NewsRepository newsRepository;
@@ -58,6 +65,7 @@ public class DetailActivity extends AppCompatActivity {
         articleUrl         = getIntent().getStringExtra(EXTRA_URL);
         articleImage       = getIntent().getStringExtra(EXTRA_IMAGE);
         articlePublishedAt = getIntent().getStringExtra(EXTRA_PUBLISHED_AT);
+        articleDescription = getIntent().getStringExtra(EXTRA_DESCRIPTION);
 
         newsRepository = new NewsRepository(this);
         firebaseAuth   = FirebaseAuth.getInstance();
@@ -67,6 +75,12 @@ public class DetailActivity extends AppCompatActivity {
         setupSaveButton();
         setupBackPressedHandler();
 
+        // ── Ghi vào lịch sử đọc ngay khi mở bài ──────────────────────────
+        saveToHistory();
+
+        // LUÔN LUÔN cho WebView load url (nếu có)
+        // Nếu có mạng: Load mới. Nếu mất mạng: Load từ Cache.
+        // Nếu không có cả mạng lẫn Cache -> hàm onReceivedError sẽ tự bắt lỗi và gọi showOfflineSummary()
         if (articleUrl != null && !articleUrl.isEmpty()) {
             webView.loadUrl(articleUrl);
         } else {
@@ -78,9 +92,6 @@ public class DetailActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Áp lại cỡ chữ nếu user vừa kéo slider ở Tiện ích
-        applyFontZoom();
-
         if (btnSave != null && articleUrl != null) {
             if (firebaseAuth.getCurrentUser() != null) {
                 newsRepository.checkSaved(articleUrl, saved -> {
@@ -91,6 +102,53 @@ public class DetailActivity extends AppCompatActivity {
                 isSaved = false;
                 updateSaveIcon();
             }
+        }
+    }
+
+    // ── Lịch sử đọc ──────────────────────────────────────────────────────────
+
+    private void saveToHistory() {
+        if (articleUrl == null || articleUrl.isEmpty()) return;
+        NewsArticle article = new NewsArticle(
+                articleTitle, articleDescription, articleImage,
+                articleUrl, articlePublishedAt, articleSource, null
+        );
+        newsRepository.markArticleAsRead(article);
+    }
+
+    private void showOfflineSummary() {
+        progressBar.setVisibility(View.GONE);
+        webView.setVisibility(View.GONE);
+
+        offlineLayout = findViewById(R.id.detailOfflineLayout);
+        if (offlineLayout == null) {
+            Toast.makeText(this,
+                    "Không có mạng. Đang hiện tóm tắt đã lưu.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        offlineLayout.setVisibility(View.VISIBLE);
+
+        ImageView imgOffline   = findViewById(R.id.detailOfflineImage);
+        TextView  tvOfflineTitle   = findViewById(R.id.detailOfflineTitle);
+        TextView  tvOfflineSource  = findViewById(R.id.detailOfflineSource);
+        TextView  tvOfflineSummary = findViewById(R.id.detailOfflineSummary);
+
+        if (imgOffline != null) {
+            Glide.with(this)
+                    .load(articleImage)
+                    .placeholder(R.drawable.placeholder_news)
+                    .error(R.drawable.placeholder_news)
+                    .into(imgOffline);
+        }
+        if (tvOfflineTitle != null)  tvOfflineTitle.setText(articleTitle);
+        if (tvOfflineSource != null) tvOfflineSource.setText(
+                (articleSource != null ? articleSource : "") + "  •  Chế độ ngoại tuyến");
+        if (tvOfflineSummary != null) {
+            tvOfflineSummary.setText(
+                    articleDescription != null && !articleDescription.isEmpty()
+                            ? articleDescription
+                            : "Không có tóm tắt cho bài viết này. Kết nối mạng để đọc đầy đủ.");
         }
     }
 
@@ -133,7 +191,7 @@ public class DetailActivity extends AppCompatActivity {
         }
         boolean newState = !isSaved;
         NewsArticle article = new NewsArticle(
-                articleTitle, null, articleImage,
+                articleTitle, articleDescription, articleImage,
                 articleUrl, articlePublishedAt, articleSource, null);
         newsRepository.toggleSave(article, newState);
         isSaved = newState;
@@ -177,6 +235,7 @@ public class DetailActivity extends AppCompatActivity {
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
+        s.setDatabaseEnabled(true); // Cần thiết cho Cache
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
         s.setBuiltInZoomControls(true);
@@ -187,7 +246,13 @@ public class DetailActivity extends AppCompatActivity {
                         "AppleWebKit/537.36 (KHTML, like Gecko) " +
                         "Chrome/120.0.0.0 Mobile Safari/537.36");
 
-        // Áp % cỡ chữ ngay khi khởi tạo WebView
+        // BẬT CƠ CHẾ CACHE (OFFLINE ĐỌC BÁO)
+        if (isNetworkAvailable()) {
+            s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        } else {
+            s.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+        }
+
         applyFontZoom();
 
         webView.setWebViewClient(new WebViewClient() {
@@ -200,14 +265,26 @@ public class DetailActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(View.GONE);
                 injectHideUI(view);
-                // setTextZoom đã áp từ trước — không cần inject lại
             }
 
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view,
-                                                    WebResourceRequest req) {
-                view.loadUrl(req.getUrl().toString());
-                return true;
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
+                String clickedUrl = req.getUrl().toString();
+
+                // CHẶN CHUYỂN HƯỚNG BÀI VIẾT KHÁC TRONG WEBVIEW
+                if (clickedUrl.equals(articleUrl)) {
+                    return false; // Cho phép load (là bài gốc)
+                } else {
+                    return true;  // Chặn load
+                }
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request,
+                                        android.webkit.WebResourceError error) {
+                if (request.isForMainFrame()) {
+                    showOfflineSummary();
+                }
             }
         });
 
@@ -221,18 +298,11 @@ public class DetailActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Áp cỡ chữ % vào WebView bằng WebSettings.setTextZoom().
-     * Đây là API chính thức của Android — không cần JS, không bị chặn.
-     * 100 = mặc định trang gốc, 150 = to hơn 50%, 80 = nhỏ hơn 20%.
-     */
     private void applyFontZoom() {
         if (webView == null) return;
         int percent = FontSizeManager.getFontPercent(this);
         webView.getSettings().setTextZoom(percent);
     }
-
-    // ── JS: ẩn header/footer/quảng cáo ──────────────────────────────────────
 
     private void injectHideUI(WebView view) {
         String js = "javascript:(function() {" +
@@ -263,7 +333,7 @@ public class DetailActivity extends AppCompatActivity {
         view.evaluateJavascript(js, null);
     }
 
-    // ── Share ─────────────────────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────────────
 
     private void shareArticle() {
         if (articleUrl == null) return;
@@ -271,6 +341,16 @@ public class DetailActivity extends AppCompatActivity {
         share.setType("text/plain");
         share.putExtra(Intent.EXTRA_TEXT, articleUrl);
         startActivity(Intent.createChooser(share, "Chia sẻ bài viết"));
+    }
+
+    // ── Kiểm tra mạng ────────────────────────────────────────────────────────
+    private boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connectivityManager != null) {
+            NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+            return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+        }
+        return false;
     }
 
     @Override

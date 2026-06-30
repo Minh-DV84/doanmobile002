@@ -7,18 +7,21 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Lấy giá xăng E10 RON95-III mới nhất bằng cách scrape bảng giá tại baomoi.com
- * (nguồn: giaxanghomnay.com, cập nhật theo mỗi kỳ điều hành của Petrolimex).
+ * Lấy giá xăng E10 RON95-III mới nhất bằng cách scrape trang giá chuyên biệt
+ * tại baomoi.com (nguồn: giaxanghomnay.com, cập nhật theo mỗi kỳ điều hành
+ * của Petrolimex).
  *
- * Trang hiển thị 1 bảng HTML <table> rõ ràng dạng:
+ * Trang chỉ hiển thị ĐÚNG 1 bảng HTML <table> cho riêng E10 RON95-III, dạng:
  *   <tr><td>Xăng E10 RON 95-III</td><td>19,910</td><td>20,300</td></tr>
- * → dễ parse hơn nhiều so với trang dạng card/div lồng nhau.
+ * → không lẫn các loại xăng/dầu khác như trang tổng hợp tien-ich-gia-xang-dau.epi.
  *
  * Từ 1/6/2026: E10 RON95-III thay thế hoàn toàn RON95-III khoáng trên toàn quốc.
  */
 public class PetrolRssParser {
 
-    private static final String URL_BAOMOI   = "https://baomoi.com/tien-ich-gia-xang-dau.epi";
+    // Trang chuyên biệt chỉ hiển thị 1 bảng giá E10 RON95-III duy nhất
+    // (không lẫn các loại xăng/dầu khác như trang tổng hợp tien-ich-gia-xang-dau.epi)
+    private static final String URL_BAOMOI   = "https://baomoi.com/tien-ich-gia-xang-dau-xang-e10-ron-95-iii.epi";
     private static final int    TIMEOUT_MS   = 8_000;
 
     public static class PetrolPrice {
@@ -47,49 +50,89 @@ public class PetrolRssParser {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
+    // Giá xăng VN trong khoảng hợp lý — dùng để loại bỏ số rác bóc nhầm
+    // (quảng cáo, script, id sản phẩm...) không phải giá xăng thật.
+    private static final int MIN_VALID_PRICE = 15_000;
+    private static final int MAX_VALID_PRICE = 35_000;
+
     private static PetrolPrice extractFromHtml(String html) {
-        // Bảng giá có dòng dạng:
-        // <tr>...Xăng E10 RON 95-III...</tr> chứa 2 số giá (vùng 1, vùng 2)
-        // Lấy dòng <tr> chứa "RON 95-III" (ưu tiên) rồi tới "RON 95-V"
+        // Trang này chỉ có ĐÚNG 1 bảng giá E10 RON95-III, không lẫn loại
+        // xăng/dầu khác — nhưng phần "Tin tức liên quan" phía dưới vẫn có
+        // nhiều số khác (USD/thùng, tỷ đồng...) nên vẫn cần validate khoảng giá.
+        String price = findValidPriceForKeyword(html, "RON 95-III");
+        if (price == null) {
+            price = findValidPriceForKeyword(html, "RON95-III");
+        }
+        if (price == null) return null;
 
-        String row = findRowContaining(html, "RON 95-III");
-        if (row == null) {
-            row = findRowContaining(html, "RON95-III");
-        }
-        if (row == null) {
-            // fallback: thử bản V nếu không tìm thấy bản III
-            row = findRowContaining(html, "RON 95-V");
-        }
-        if (row == null) return null;
-
-        // Trong dòng <tr> đó, lấy số đầu tiên dạng XX,XXX hoặc XX.XXX (giá vùng 1)
-        Matcher m = Pattern.compile("([1-9][0-9][.,][0-9]{3})").matcher(row);
-        if (m.find()) {
-            String raw = m.group(1).replace(".", ",");
-            return new PetrolPrice(raw + " đ/L", "Nguồn: Petrolimex");
-        }
-        return null;
+        return new PetrolPrice(price + " đ/L", "Nguồn: Petrolimex");
     }
 
     /**
-     * Tìm đoạn <tr>...</tr> đầu tiên có chứa từ khoá cho trước (case-insensitive).
+     * Quét QUA TẤT CẢ các vị trí xuất hiện của keyword trong trang (không chỉ
+     * vị trí đầu tiên), tìm dòng <tr> hợp lệ tương ứng, và trả về giá đầu tiên
+     * nằm trong khoảng hợp lý [MIN_VALID_PRICE, MAX_VALID_PRICE].
+     *
+     * Lý do quét nhiều vị trí: baomoi.com là trang tổng hợp tin tức, có thể
+     * chứa từ khoá "RON 95-III" ở nhiều chỗ ngoài bảng giá (bài viết liên quan,
+     * script, breadcrumb...). Nếu vị trí đầu tiên không phải bảng giá thật,
+     * thử các vị trí tiếp theo thay vì lấy nhầm số rác.
      */
-    private static String findRowContaining(String html, String keyword) {
+    private static String findValidPriceForKeyword(String html, String keyword) {
         String lowerHtml = html.toLowerCase();
         String lowerKw   = keyword.toLowerCase();
 
-        int kwIndex = lowerHtml.indexOf(lowerKw);
-        if (kwIndex < 0) return null;
+        int searchFrom = 0;
+        while (true) {
+            int kwIndex = lowerHtml.indexOf(lowerKw, searchFrom);
+            if (kwIndex < 0) return null; // hết các vị trí khớp, không tìm thấy giá hợp lệ
 
-        // Lùi về <tr> gần nhất trước keyword
+            String row = extractRow(html, lowerHtml, kwIndex);
+            if (row != null) {
+                String price = extractValidPriceFromRow(row);
+                if (price != null) return price;
+            }
+
+            // thử vị trí khớp tiếp theo
+            searchFrom = kwIndex + lowerKw.length();
+        }
+    }
+
+    /**
+     * Tìm đoạn <tr>...</tr> bao quanh vị trí kwIndex. Trả về null nếu không
+     * tìm thấy thẻ <tr> mở hợp lệ phía trước (tránh cắt nhầm từ giữa nội dung
+     * không phải bảng, đây là nguyên nhân chính gây ra số giá sai trước đây).
+     */
+    private static String extractRow(String html, String lowerHtml, int kwIndex) {
         int trStart = lowerHtml.lastIndexOf("<tr", kwIndex);
-        if (trStart < 0) trStart = kwIndex;
+        if (trStart < 0) return null; // không có <tr> mở phía trước → không phải bảng, bỏ qua
 
-        // Tìm </tr> gần nhất sau keyword
         int trEnd = lowerHtml.indexOf("</tr>", kwIndex);
         if (trEnd < 0) return null;
 
         return html.substring(trStart, trEnd + 5);
+    }
+
+    /**
+     * Lấy số giá đầu tiên trong dòng <tr> nằm trong khoảng hợp lệ.
+     * Quét qua TẤT CẢ số khớp định dạng XX,XXX/XX.XXX trong dòng, không chỉ
+     * số đầu tiên, để bỏ qua các số rác (id, timestamp...) không phải giá xăng.
+     */
+    private static String extractValidPriceFromRow(String row) {
+        Matcher m = Pattern.compile("([1-9][0-9][.,][0-9]{3})").matcher(row);
+        while (m.find()) {
+            String raw = m.group(1).replace(".", ",");
+            int value;
+            try {
+                value = Integer.parseInt(raw.replace(",", ""));
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            if (value >= MIN_VALID_PRICE && value <= MAX_VALID_PRICE) {
+                return raw;
+            }
+        }
+        return null;
     }
 
     private static String downloadText(String urlStr) {

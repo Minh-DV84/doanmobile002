@@ -46,7 +46,7 @@ public class HomeViewModel extends AndroidViewModel {
     public HomeViewModel(@NonNull Application application) {
         super(application);
         newsRepo   = new NewsRepository(application);
-        widgetRepo = new WidgetRepository();
+        widgetRepo = new WidgetRepository(application);
 
         // Lấy LiveData trang chủ từ Room
         homeArticlesLive = newsRepo.getHomeArticlesLive();

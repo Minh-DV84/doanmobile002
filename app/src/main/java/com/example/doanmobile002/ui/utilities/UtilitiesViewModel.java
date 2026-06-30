@@ -20,6 +20,8 @@ public class UtilitiesViewModel extends AndroidViewModel {
         newsRepo = new NewsRepository(application);
     }
 
+    // ── Tab "Đã lưu" ─────────────────────────────────────────────────────────
+
     /** LiveData danh sách bài đã lưu — Room tự notify khi thay đổi */
     public LiveData<List<NewsArticle>> getSavedArticles() {
         return newsRepo.getSavedArticlesLive();
@@ -28,5 +30,22 @@ public class UtilitiesViewModel extends AndroidViewModel {
     /** Bỏ lưu bài viết */
     public void unsaveArticle(NewsArticle article) {
         newsRepo.toggleSave(article, false);
+    }
+
+    // ── Tab "Lịch sử" ────────────────────────────────────────────────────────
+
+    /** LiveData danh sách bài đã đọc — hoạt động cả khi offline */
+    public LiveData<List<NewsArticle>> getHistoryArticles() {
+        return newsRepo.getHistoryArticlesLive();
+    }
+
+    /** Xóa 1 mục khỏi lịch sử (không ảnh hưởng nếu bài đó đã được lưu) */
+    public void removeFromHistory(NewsArticle article) {
+        if (article != null) newsRepo.removeFromHistory(article.getUrl());
+    }
+
+    /** Xóa toàn bộ lịch sử đọc (giữ nguyên bài đã lưu) */
+    public void clearAllHistory() {
+        newsRepo.clearHistory();
     }
 }

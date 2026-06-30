@@ -26,19 +26,25 @@ import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 
-public class SavedNewsAdapter extends RecyclerView.Adapter<SavedNewsAdapter.SavedViewHolder> {
+/**
+ * Hiển thị danh sách bài đã đọc (Room: readAt > 0) trong tab "Lịch sử"
+ * của UtilitiesFragment. Dùng chung layout item_saved_news.xml với
+ * SavedNewsAdapter — chỉ khác hành vi nút phải (xóa khỏi lịch sử thay
+ * vì bỏ lưu).
+ */
+public class HistoryNewsAdapter extends RecyclerView.Adapter<HistoryNewsAdapter.HistoryViewHolder> {
 
-    public interface OnUnsaveListener {
-        void onUnsave(NewsArticle article);
+    public interface OnRemoveListener {
+        void onRemove(NewsArticle article);
     }
 
-    private List<NewsArticle>  articles = new ArrayList<>();
+    private List<NewsArticle>      articles = new ArrayList<>();
     private final Context          context;
-    private final OnUnsaveListener unsaveListener;
+    private final OnRemoveListener removeListener;
 
-    public SavedNewsAdapter(Context context, OnUnsaveListener listener) {
+    public HistoryNewsAdapter(Context context, OnRemoveListener listener) {
         this.context        = context;
-        this.unsaveListener = listener;
+        this.removeListener = listener;
     }
 
     public void setArticles(List<NewsArticle> list) {
@@ -48,31 +54,31 @@ public class SavedNewsAdapter extends RecyclerView.Adapter<SavedNewsAdapter.Save
 
     @NonNull
     @Override
-    public SavedViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+    public HistoryViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View v = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_saved_news, parent, false);
-        return new SavedViewHolder(v);
+        return new HistoryViewHolder(v);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull SavedViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull HistoryViewHolder holder, int position) {
         holder.bind(articles.get(position));
     }
 
     @Override
     public int getItemCount() { return articles.size(); }
 
-    class SavedViewHolder extends RecyclerView.ViewHolder {
-        ImageView imgThumb, btnUnsave;
+    class HistoryViewHolder extends RecyclerView.ViewHolder {
+        ImageView imgThumb, btnRemove;
         TextView  tvTitle, tvSource, tvTime;
 
-        SavedViewHolder(View v) {
+        HistoryViewHolder(View v) {
             super(v);
             imgThumb  = v.findViewById(R.id.imgSavedThumb);
             tvTitle   = v.findViewById(R.id.tvSavedTitle);
             tvSource  = v.findViewById(R.id.tvSavedSource);
             tvTime    = v.findViewById(R.id.tvSavedTime);
-            btnUnsave = v.findViewById(R.id.btnUnsave);
+            btnRemove = v.findViewById(R.id.btnUnsave);   // tái dùng id sẵn có
         }
 
         void bind(NewsArticle a) {
@@ -88,8 +94,6 @@ public class SavedNewsAdapter extends RecyclerView.Adapter<SavedNewsAdapter.Save
                     .centerCrop()
                     .into(imgThumb);
 
-            // Click → mở chi tiết — truyền ĐẦY ĐỦ extras để markArticleAsRead()
-            // có sẵn description/ảnh ngay từ đầu, không cần chờ mạng.
             itemView.setOnClickListener(v -> {
                 Intent intent = new Intent(context, DetailActivity.class);
                 intent.putExtra(DetailActivity.EXTRA_TITLE,        a.getTitle());
@@ -101,13 +105,15 @@ public class SavedNewsAdapter extends RecyclerView.Adapter<SavedNewsAdapter.Save
                 context.startActivity(intent);
             });
 
-            // Nút bỏ lưu
-            btnUnsave.setOnClickListener(v -> {
-                if (unsaveListener != null) unsaveListener.onUnsave(a);
-            });
+            if (btnRemove != null) {
+                btnRemove.setImageResource(android.R.drawable.ic_menu_close_clear_cancel);
+                btnRemove.setOnClickListener(v -> {
+                    if (removeListener != null) removeListener.onRemove(a);
+                });
+            }
 
             itemView.setOnLongClickListener(v -> {
-                if (unsaveListener != null) unsaveListener.onUnsave(a);
+                if (removeListener != null) removeListener.onRemove(a);
                 return true;
             });
         }

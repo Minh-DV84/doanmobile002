@@ -11,7 +11,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="⚙ Cỡ Chữ"
+        android:text="⚙ Tiện ích"
         android:textSize="20sp"
         android:textStyle="bold"
         android:textColor="?attr/colorOnSurface"
@@ -20,7 +20,7 @@
         android:paddingBottom="8dp" />
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    <!-- Card cỡ chữ — Slider kéo theo %                                    -->
+    <!-- Card cỡ chữ — Slider kéo theo %  (GIỮ NGUYÊN 100% không đổi)        -->
     <!-- ════════════════════════════════════════════════════════════════════ -->
     <androidx.cardview.widget.CardView
         android:id="@+id/cardFontSize"
@@ -89,7 +89,6 @@
                 android:gravity="center_vertical"
                 android:layout_marginTop="8dp">
 
-                <!-- A nhỏ bên trái -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -113,7 +112,6 @@
                     app:haloColor="#331877F2"
                     app:labelBehavior="gone" />
 
-                <!-- A lớn bên phải -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -125,23 +123,12 @@
 
             </LinearLayout>
 
-            <!--
-                Nhãn mốc: slider 80→150, stepSize=10 → 8 bước (80,90,100,110,120,130,140,150)
-                80%  = bước 0/7 = 0%   từ trái
-                100% = bước 2/7 ≈ 28.6% từ trái
-                150% = bước 7/7 = 100% từ phải
-
-                Dùng 3 vùng weight để căn đúng vị trí:
-                  vùng trái  (0→100%): weight = 2  → chiếm 2/7
-                  vùng phải (100→150%): weight = 5  → chiếm 5/7
-            -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:paddingHorizontal="4dp">
 
-                <!-- Nhãn 80% — neo trái -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -150,13 +137,11 @@
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:gravity="start" />
 
-                <!-- Khoảng đệm từ 80% → 100% (2 bước / 7 bước = weight 2) -->
                 <Space
                     android:layout_width="0dp"
                     android:layout_height="1dp"
                     android:layout_weight="2" />
 
-                <!-- Nhãn 100% — đúng vị trí bước thứ 2 -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -165,13 +150,11 @@
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:gravity="center" />
 
-                <!-- Khoảng đệm từ 100% → 150% (5 bước / 7 bước = weight 5) -->
                 <Space
                     android:layout_width="0dp"
                     android:layout_height="1dp"
                     android:layout_weight="5" />
 
-                <!-- Nhãn 150% — neo phải -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -186,19 +169,50 @@
     </androidx.cardview.widget.CardView>
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    <!-- Header bài đã lưu                                                  -->
+    <!-- Tab "Đã lưu" / "Lịch sử" — thay cho header tĩnh cũ                  -->
     <!-- ════════════════════════════════════════════════════════════════════ -->
-    <TextView
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabSavedHistory"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="❤ Bài viết đã lưu"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:textColor="?attr/colorOnSurface"
-        android:paddingHorizontal="16dp"
-        android:paddingBottom="8dp" />
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="8dp"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabIndicatorColor="#1877F2"
+        app:tabSelectedTextColor="#1877F2"
+        app:tabTextColor="?attr/colorOnSurfaceVariant"
+        app:tabIndicatorHeight="3dp"
+        android:background="@drawable/bg_search">
 
-    <!-- Card yêu cầu đăng nhập -->
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="❤ Đã lưu" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🕘 Lịch sử" />
+
+    </com.google.android.material.tabs.TabLayout>
+
+    <!-- Nút xóa toàn bộ lịch sử — chỉ hiện khi đang ở tab Lịch sử -->
+    <TextView
+        android:id="@+id/btnClearHistory"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="4dp"
+        android:text="Xóa tất cả"
+        android:textSize="13sp"
+        android:textColor="#E53935"
+        android:padding="6dp"
+        android:visibility="gone"
+        android:background="?attr/selectableItemBackground" />
+
+    <!-- Card yêu cầu đăng nhập — chỉ áp dụng cho tab "Đã lưu" -->
     <androidx.cardview.widget.CardView
         android:id="@+id/layoutLoginPrompt"
         android:layout_width="match_parent"
@@ -250,7 +264,9 @@
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
-    <!-- Danh sách bài đã lưu -->
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+    <!-- Vùng nội dung dùng chung — đổi adapter theo tab đang chọn            -->
+    <!-- ════════════════════════════════════════════════════════════════════ -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent">
@@ -269,6 +285,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:gravity="center"
+            android:padding="32dp"
             android:textSize="15sp"
             android:textColor="?attr/colorOnSurfaceVariant"
             android:visibility="gone" />

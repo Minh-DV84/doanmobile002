@@ -66,4 +66,80 @@
         android:layout_height="0dp"
         android:layout_weight="1" />
 
+    <ScrollView
+        android:id="@+id/detailOfflineLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:fillViewport="true"
+        android:background="?attr/colorSurface">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <!-- Badge chế độ ngoại tuyến -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="#FFF3E0"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📡 Không có kết nối — đang hiện bản tóm tắt đã lưu"
+                    android:textSize="12sp"
+                    android:textColor="#E65100" />
+
+            </LinearLayout>
+
+            <!-- Ảnh đại diện bài viết -->
+            <ImageView
+                android:id="@+id/detailOfflineImage"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:scaleType="centerCrop"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Tiêu đề -->
+            <TextView
+                android:id="@+id/detailOfflineTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface"
+                android:layout_marginBottom="6dp" />
+
+            <!-- Nguồn + trạng thái -->
+            <TextView
+                android:id="@+id/detailOfflineSource"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Tóm tắt ~10 dòng -->
+            <TextView
+                android:id="@+id/detailOfflineSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="16sp"
+                android:lineSpacingMultiplier="1.4"
+                android:textColor="?attr/colorOnSurface"
+                android:maxLines="20" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+
 </LinearLayout>

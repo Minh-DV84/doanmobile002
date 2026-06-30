@@ -1,10 +1,12 @@
 package com.example.doanmobile002.data.repository;
 
+import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
 import com.example.doanmobile002.data.remote.GoldApiService;
+import com.example.doanmobile002.data.remote.GoldTokenManager;
 import com.example.doanmobile002.data.remote.PetrolRssParser;
 import com.example.doanmobile002.data.remote.RetrofitClient;
 import com.example.doanmobile002.data.remote.WeatherApiService;
@@ -37,9 +39,9 @@ import retrofit2.Response;
  *
  *  Callback onResult() được gọi 1 lần sau khi TẤT CẢ 3 async task hoàn thành.
  *
- *  LƯU Ý — GOLD_BEARER token hết hạn sau 15 NGÀY kể từ lúc lấy.
- *  Lấy token mới tại: https://vapi.vnappmob.com/api/request_api_key?scope=gold
- *  rồi paste đè vào GOLD_TOKEN bên dưới (chỉ phần token, không gồm "Bearer ").
+ *  Token VNAppMob Gold được TỰ ĐỘNG xin và làm mới bởi GoldTokenManager —
+ *  không cần ai tay đổi token mỗi 15 ngày nữa. Token mới được lưu trong
+ *  SharedPreferences, dùng lại cho tới khi gần hết hạn (xem GoldTokenManager).
  */
 public class WidgetRepository {
 
@@ -49,31 +51,31 @@ public class WidgetRepository {
     private static final String WEATHER_KEY  = "965faee10a044554b7881212261505";
     private static final String WEATHER_CITY = "Ha Noi";
 
-    // VNAppMob Gold SJC token — hết hạn 15 ngày kể từ lúc lấy.
-    // Lấy token mới tại: https://vapi.vnappmob.com/api/request_api_key?scope=gold
-    private static final String GOLD_TOKEN  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODQxMDU2MDcsImlhdCI6MTc4MjgwOTYwNywic2NvcGUiOiJnb2xkIiwicGVybWlzc2lvbiI6MH0.QU28-_11ga2fL9-81TOnLLHIXswyAGzrpHExYsZPb34";
-
-    // Header chuẩn theo doc VNAppMob: "Authorization: Bearer <token>"
-    private static final String GOLD_BEARER = "Bearer " + GOLD_TOKEN;
-
     // ── Static fallback (cập nhật theo kỳ điều hành thực tế) ─────────────────
     private static final String FALLBACK_E10RON95  = "19,910 đ/L";
     private static final String FALLBACK_GOLD_BUY  = "119.50";
     private static final String FALLBACK_GOLD_SELL = "121.80";
 
-    private final WeatherApiService weatherApi;
-    private final GoldApiService    goldApi;
-    private final ExecutorService   executor    = Executors.newFixedThreadPool(3);
-    private final Handler           mainHandler = new Handler(Looper.getMainLooper());
+    private final WeatherApiService  weatherApi;
+    private final GoldApiService     goldApi;
+    private final GoldTokenManager   goldTokenManager;
+    private final ExecutorService    executor    = Executors.newFixedThreadPool(3);
+    private final Handler            mainHandler = new Handler(Looper.getMainLooper());
 
     public interface WidgetCallback {
         /** Luôn được gọi — kể cả khi 1 hoặc nhiều nguồn lỗi (partial data) */
         void onResult(WidgetData data);
     }
 
-    public WidgetRepository() {
-        weatherApi = RetrofitClient.getWeatherService();
-        goldApi    = RetrofitClient.getGoldService();
+    /**
+     * @param context dùng để khởi tạo SharedPreferences cho GoldTokenManager —
+     *                 truyền context của Application hoặc Activity đều được,
+     *                 GoldTokenManager tự lấy applicationContext bên trong.
+     */
+    public WidgetRepository(Context context) {
+        weatherApi       = RetrofitClient.getWeatherService();
+        goldApi          = RetrofitClient.getGoldService();
+        goldTokenManager = new GoldTokenManager(context);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -173,40 +175,56 @@ public class WidgetRepository {
 
     // ── Card 4: Giá vàng SJC (VNAppMob API) ──────────────────────────────────
     // Endpoint /api/v2/gold/sjc trả field "buy_1l" / "sell_1l" (giá theo lượng)
+    // Token được GoldTokenManager tự xin/làm mới — xem class đó để biết chi tiết.
 
     private void fetchGold(WidgetData data, Runnable onDone) {
-        goldApi.getSjcGoldPrice(GOLD_BEARER)
-                .enqueue(new Callback<VnAppMobGoldResponse>() {
-                    @Override
-                    public void onResponse(Call<VnAppMobGoldResponse> call,
-                                           Response<VnAppMobGoldResponse> response) {
-                        if (response.isSuccessful()
-                                && response.body() != null
-                                && response.body().getResults() != null
-                                && !response.body().getResults().isEmpty()) {
+        // Lấy token có thể cần gọi network (khi token cũ hết hạn) → chạy trên
+        // background thread, không gọi trực tiếp từ main thread.
+        executor.execute(() -> {
+            String bearer = goldTokenManager.getBearerTokenSync();
 
-                            VnAppMobGoldResponse.GoldResult r =
-                                    response.body().getResults().get(0);
-                            data.setGoldBuy(formatMillions(r.getBuy1l()));
-                            data.setGoldSell(formatMillions(r.getSell1l()));
-                            data.setGoldUnit("triệu đ/lượng  •  SJC");
+            if (bearer == null) {
+                // Không xin được token (vd. mất mạng ngay từ bước xin token) →
+                // dùng fallback ngay, không cần gọi API giá vàng nữa.
+                Log.w(TAG, "Không lấy được Gold token, dùng fallback");
+                setGoldFallback(data);
+                onDone.run();
+                return;
+            }
 
-                        } else {
-                            Log.w(TAG, "Gold response not successful: code="
-                                    + response.code()
-                                    + " body=" + (response.body() != null));
-                            setGoldFallback(data);
+            goldApi.getSjcGoldPrice(bearer)
+                    .enqueue(new Callback<VnAppMobGoldResponse>() {
+                        @Override
+                        public void onResponse(Call<VnAppMobGoldResponse> call,
+                                               Response<VnAppMobGoldResponse> response) {
+                            if (response.isSuccessful()
+                                    && response.body() != null
+                                    && response.body().getResults() != null
+                                    && !response.body().getResults().isEmpty()) {
+
+                                VnAppMobGoldResponse.GoldResult r =
+                                        response.body().getResults().get(0);
+                                data.setGoldBuy(formatMillions(r.getBuy1l()));
+                                data.setGoldSell(formatMillions(r.getSell1l()));
+                                data.setGoldUnit("triệu đ/lượng  •  SJC");
+
+                            } else {
+                                Log.w(TAG, "Gold response not successful: code="
+                                        + response.code()
+                                        + " body=" + (response.body() != null));
+                                setGoldFallback(data);
+                            }
+                            onDone.run();
                         }
-                        onDone.run();
-                    }
 
-                    @Override
-                    public void onFailure(Call<VnAppMobGoldResponse> call, Throwable t) {
-                        Log.w(TAG, "Gold fetch failed: " + t.getMessage());
-                        setGoldFallback(data);
-                        onDone.run();
-                    }
-                });
+                        @Override
+                        public void onFailure(Call<VnAppMobGoldResponse> call, Throwable t) {
+                            Log.w(TAG, "Gold fetch failed: " + t.getMessage());
+                            setGoldFallback(data);
+                            onDone.run();
+                        }
+                    });
+        });
     }
 
     private void setGoldFallback(WidgetData data) {

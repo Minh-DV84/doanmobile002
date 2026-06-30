@@ -28,6 +28,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  *  - UI luôn đọc từ Room (LiveData)
  *  - Khi có mạng: fetch RSS → lưu vào Room → Room tự notify UI
  *  - Khi mất mạng: báo offline → UI vẫn hiện dữ liệu cũ từ Room
+ *
+ *  Lịch sử đọc (readAt > 0): mỗi khi DetailActivity mở 1 bài, gọi
+ *  markArticleAsRead() → insert (nếu chưa có) + set readAt = now.
+ *  Bài lịch sử lưu sẵn description (tóm tắt ~10 dòng) để xem offline,
+ *  không cần cache full HTML.
  */
 public class NewsRepository {
 
@@ -71,6 +76,11 @@ public class NewsRepository {
     // ── LiveData bài đã lưu ──────────────────────────────────────────────────
     public LiveData<List<NewsArticle>> getSavedArticlesLive() {
         return Transformations.map(dao.getSavedArticles(), this::mapEntityList);
+    }
+
+    // ── LiveData lịch sử đọc ─────────────────────────────────────────────────
+    public LiveData<List<NewsArticle>> getHistoryArticlesLive() {
+        return Transformations.map(dao.getHistoryArticles(), this::mapEntityList);
     }
 
     // ── Fetch trang chủ từ RSS → lưu Room ───────────────────────────────────
@@ -198,6 +208,38 @@ public class NewsRepository {
             boolean saved = dao.isArticleSaved(url);
             mainHandler.post(() -> callback.onResult(saved));
         });
+    }
+
+    // ── Lịch sử đọc ──────────────────────────────────────────────────────────
+
+    /**
+     * Đánh dấu 1 bài đã đọc. Gọi từ DetailActivity ngay khi mở bài.
+     * Insert/replace để đảm bảo có đủ description (tóm tắt) + ảnh mới nhất,
+     * giữ nguyên trạng thái isSaved cũ nếu bài đã từng được lưu trước đó.
+     */
+    public void markArticleAsRead(NewsArticle article) {
+        if (article == null || article.getUrl() == null) return;
+        final long now = System.currentTimeMillis();
+
+        executor.execute(() -> {
+            boolean wasSaved = dao.isArticleSaved(article.getUrl());
+
+            NewsArticleEntity entity = mapArticle(article, "home");
+            entity.isSaved = wasSaved;
+            entity.readAt  = now;
+            dao.insertOne(entity);
+        });
+    }
+
+    /** Xóa toàn bộ lịch sử đọc (giữ nguyên bài đã lưu) */
+    public void clearHistory() {
+        executor.execute(dao::clearHistory);
+    }
+
+    /** Xóa 1 mục khỏi lịch sử (giữ nguyên nếu đã lưu) */
+    public void removeFromHistory(String url) {
+        if (url == null) return;
+        executor.execute(() -> dao.removeFromHistory(url));
     }
 
     // ── Kiểm tra mạng ────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ import androidx.room.RoomDatabase;
 
 @Database(
         entities = { NewsArticleEntity.class, GameScoreEntity.class },
-        version  = 2,
+        version  = 3,   // ← tăng từ 2 lên 3: thêm cột readAt cho lịch sử đọc
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
