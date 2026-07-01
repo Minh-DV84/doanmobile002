@@ -41,8 +41,26 @@ public interface NewsDao {
     List<NewsArticleEntity> searchLocal(String query);
 
     // ── Xóa cache trang chủ (giữ bài đã lưu / đã đọc) ──────────────────────
+    // Giữ lại để dùng khi cần force-clear hoàn toàn (vd lần load đầu tiên / logout)
     @Query("DELETE FROM news_articles WHERE type = 'home' AND isSaved = 0 AND readAt = 0")
     void clearHomeCache();
+
+    /**
+     * Xóa các bài "home" KHÔNG còn xuất hiện trong danh sách feed mới nhất
+     * (đã rớt khỏi top hiện tại), nhưng vẫn giữ lại nếu đã lưu hoặc đã đọc.
+     * Dùng thay cho clearHomeCache() khi refresh để tránh xoá-rồi-chèn-lại
+     * toàn bộ danh sách → tránh RecyclerView bị giật/nhảy vị trí cuộn.
+     */
+    @Query("DELETE FROM news_articles WHERE type = 'home' AND isSaved = 0 AND readAt = 0 AND url NOT IN (:urls)")
+    void deleteStaleHome(List<String> urls);
+
+    /**
+     * Lấy toàn bộ bài "home" hiện có (đồng bộ, không phải LiveData).
+     * Dùng để giữ nguyên savedAt cũ khi merge dữ liệu mới từ RSS,
+     * tránh việc bài cũ bị đổi thứ tự mỗi lần background tự sync lại.
+     */
+    @Query("SELECT * FROM news_articles WHERE type = 'home'")
+    List<NewsArticleEntity> getHomeArticlesSync();
 
     // ── Kiểm tra 1 bài đã được lưu chưa (dùng cho nút bookmark) ─────────────
     @Query("SELECT EXISTS(SELECT 1 FROM news_articles WHERE url = :url AND isSaved = 1)")

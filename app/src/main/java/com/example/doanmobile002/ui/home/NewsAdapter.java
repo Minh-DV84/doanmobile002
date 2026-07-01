@@ -11,6 +11,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
@@ -45,9 +46,49 @@ public class NewsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.firebaseAuth   = FirebaseAuth.getInstance();
     }
 
+    /**
+     * Cập nhật danh sách bằng DiffUtil thay vì notifyDataSetChanged().
+     * Nhờ vậy khi background tự sync lại (vd refresh ngầm, sau toggle save...),
+     * RecyclerView chỉ cập nhật đúng item thay đổi, giữ nguyên vị trí cuộn
+     * thay vì vẽ lại toàn bộ danh sách (gây cảm giác "load lại trang mới"
+     * mỗi khi người dùng đang cuộn lên tìm bài đã lướt qua).
+     */
     public void setArticles(List<NewsArticle> newArticles) {
-        this.articles = newArticles != null ? newArticles : new ArrayList<>();
-        notifyDataSetChanged();
+        List<NewsArticle> updated = newArticles != null ? newArticles : new ArrayList<>();
+        List<NewsArticle> old = this.articles;
+
+        DiffUtil.DiffResult result = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override
+            public int getOldListSize() { return old.size(); }
+
+            @Override
+            public int getNewListSize() { return updated.size(); }
+
+            @Override
+            public boolean areItemsTheSame(int oldPos, int newPos) {
+                String oldUrl = old.get(oldPos).getUrl();
+                String newUrl = updated.get(newPos).getUrl();
+                return oldUrl != null && oldUrl.equals(newUrl);
+            }
+
+            @Override
+            public boolean areContentsTheSame(int oldPos, int newPos) {
+                NewsArticle a = old.get(oldPos);
+                NewsArticle b = updated.get(newPos);
+                return equalsSafe(a.getTitle(), b.getTitle())
+                        && equalsSafe(a.getUrlToImage(), b.getUrlToImage())
+                        && equalsSafe(a.getPublishedAt(), b.getPublishedAt())
+                        && equalsSafe(a.getSourceName(), b.getSourceName());
+            }
+        });
+
+        this.articles = updated;
+        result.dispatchUpdatesTo(this);
+    }
+
+    private boolean equalsSafe(String a, String b) {
+        if (a == null) return b == null;
+        return a.equals(b);
     }
 
     public int getItemCount()           { return articles.size(); }

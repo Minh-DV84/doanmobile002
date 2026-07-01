@@ -26,18 +26,15 @@ public class HomeViewModel extends AndroidViewModel {
 
     // ── LiveData expose cho UI ────────────────────────────────────────────────
 
-    // Bài báo — lấy thẳng từ Room qua Transformations
     private LiveData<List<NewsArticle>> homeArticlesLive;
 
-    // Kết quả search (không lưu DB, chỉ hiện tạm)
     private final MutableLiveData<List<NewsArticle>> searchResultsLive = new MutableLiveData<>();
 
-    // Dùng MediatorLiveData để gộp home + search vào 1 stream cho Fragment
     private final MediatorLiveData<List<NewsArticle>> articlesLiveData = new MediatorLiveData<>();
 
     private final MutableLiveData<Boolean> isLoadingLiveData = new MutableLiveData<>(false);
     private final MutableLiveData<String>  errorLiveData     = new MutableLiveData<>();
-    private final MutableLiveData<String>  toastLiveData     = new MutableLiveData<>(); // "offline" toast
+    private final MutableLiveData<String>  toastLiveData     = new MutableLiveData<>();
     private final MutableLiveData<WidgetData> widgetLiveData = new MutableLiveData<>();
 
     private boolean isSearchMode = false;
@@ -48,10 +45,8 @@ public class HomeViewModel extends AndroidViewModel {
         newsRepo   = new NewsRepository(application);
         widgetRepo = new WidgetRepository(application);
 
-        // Lấy LiveData trang chủ từ Room
         homeArticlesLive = newsRepo.getHomeArticlesLive();
 
-        // MediatorLiveData: khi không search → hiện homeArticlesLive
         articlesLiveData.addSource(homeArticlesLive, articles -> {
             if (!isSearchMode) {
                 articlesLiveData.setValue(articles);
@@ -89,7 +84,6 @@ public class HomeViewModel extends AndroidViewModel {
             }
             @Override public void onOffline() {
                 isLoadingLiveData.postValue(false);
-                // Hiện toast offline — Room LiveData vẫn tự hiện cache
                 toastLiveData.postValue("offline");
             }
             @Override public void onError(String msg) {
@@ -97,7 +91,6 @@ public class HomeViewModel extends AndroidViewModel {
                 errorLiveData.postValue(msg);
             }
             @Override public void onSuccessComplete() {
-                // Tắt loading ngay lập tức khi việc parse và ghi DB hoàn tất
                 isLoadingLiveData.postValue(false);
             }
         });
@@ -129,7 +122,6 @@ public class HomeViewModel extends AndroidViewModel {
     public void exitSearch() {
         isSearchMode = false;
         lastQuery    = null;
-        // Lấy lại giá trị hiện tại từ Room
         if (homeArticlesLive.getValue() != null) {
             articlesLiveData.setValue(homeArticlesLive.getValue());
         }

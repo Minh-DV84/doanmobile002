@@ -18,7 +18,9 @@ import com.example.doanmobile002.models.NewsArticle;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,8 +47,10 @@ public class NewsRepository {
 
     private final NewsDao         dao;
     private final Context         context;
-    private final ExecutorService executor    = Executors.newFixedThreadPool(4);
-    private final Handler         mainHandler = new Handler(Looper.getMainLooper());
+    // Tách executor: network (fetch RSS) và DB (ghi Room) để không tranh chấp thread
+    private final ExecutorService networkExecutor = Executors.newFixedThreadPool(4);
+    private final ExecutorService dbExecutor      = Executors.newSingleThreadExecutor();
+    private final Handler         mainHandler     = new Handler(Looper.getMainLooper());
 
     public interface NewsCallback {
         void onSuccess(List<NewsArticle> articles);
@@ -57,7 +61,7 @@ public class NewsRepository {
         void onOffline();
         void onOnline();
         void onError(String msg);
-        default void onSuccessComplete() {}
+        void onSuccessComplete();
     }
 
     public interface SavedStateCallback {
@@ -85,7 +89,6 @@ public class NewsRepository {
     }
 
     // ── Fetch trang chủ từ RSS → lưu Room ───────────────────────────────────
-    // ── Fetch trang chủ từ RSS → lưu Room ───────────────────────────────────
     public void syncHomeNews(StatusCallback status) {
         if (!isOnline()) {
             mainHandler.post(status::onOffline);
@@ -101,7 +104,7 @@ public class NewsRepository {
             final String url    = feed[0];
             final String source = feed[1];
 
-            executor.execute(() -> {
+            networkExecutor.execute(() -> {
                 List<NewsArticle> result = RssParser.parse(url, source);
                 combined.addAll(result);
 
@@ -112,19 +115,44 @@ public class NewsRepository {
                             String db = b.getPublishedAt() != null ? b.getPublishedAt() : "";
                             return db.compareTo(da);
                         });
-                        executor.execute(() -> {
-                            dao.clearHomeCache();
-                            dao.insertAll(mapArticleList(combined, "home"));
-
-                            // Dữ liệu đã lưu vào DB thành công -> tắt loading một cách chính xác
-                            mainHandler.post(status::onSuccessComplete);
-                        });
+                        dbExecutor.execute(() -> mergeAndSaveHome(combined, status));
                     } else {
                         mainHandler.post(() -> status.onError("Không tải được tin tức mới"));
                     }
                 }
             });
         }
+    }
+
+    /**
+     * Merge dữ liệu RSS mới với cache hiện có:
+     *  - Bài đã tồn tại: giữ nguyên savedAt cũ → KHÔNG đổi vị trí trong danh sách.
+     *    (Nếu set savedAt mới mỗi lần sync, bài đang xem có thể bị nhảy vị trí
+     *     ngay khi người dùng đang cuộn lên tìm lại bài đã lướt qua.)
+     *  - Bài hoàn toàn mới: giữ savedAt mặc định (thời điểm tạo entity).
+     *  - Bài đã rớt khỏi feed (và chưa lưu/chưa đọc): bị xoá qua deleteStaleHome.
+     */
+    private void mergeAndSaveHome(List<NewsArticle> combined, StatusCallback status) {
+        List<NewsArticleEntity> newEntities = mapArticleList(combined, "home");
+
+        List<NewsArticleEntity> existing = dao.getHomeArticlesSync();
+        Map<String, Long> oldSavedAt = new HashMap<>();
+        for (NewsArticleEntity e : existing) {
+            oldSavedAt.put(e.url, e.savedAt);
+        }
+        for (NewsArticleEntity e : newEntities) {
+            Long prev = oldSavedAt.get(e.url);
+            if (prev != null) {
+                e.savedAt = prev;
+            }
+        }
+
+        List<String> newUrls = new ArrayList<>();
+        for (NewsArticleEntity e : newEntities) newUrls.add(e.url);
+
+        dao.insertAll(newEntities);
+        dao.deleteStaleHome(newUrls);
+        mainHandler.post(status::onSuccessComplete);
     }
 
     // ── Fetch tin xu hướng (không lưu Room, chỉ trả về UI) ──────────────────
@@ -141,7 +169,7 @@ public class NewsRepository {
             final String url    = feed[0];
             final String source = feed[1];
 
-            executor.execute(() -> {
+            networkExecutor.execute(() -> {
                 List<NewsArticle> result = RssParser.parse(url, source);
                 combined.addAll(result);
 
@@ -172,7 +200,7 @@ public class NewsRepository {
         final String trimmed = query.trim();
 
         if (isOnline()) {
-            executor.execute(() -> {
+            networkExecutor.execute(() -> {
                 List<NewsArticle> results = RssSearchEngine.search(trimmed);
                 mainHandler.post(() -> {
                     if (results.isEmpty())
@@ -182,7 +210,7 @@ public class NewsRepository {
                 });
             });
         } else {
-            executor.execute(() -> {
+            dbExecutor.execute(() -> {
                 List<NewsArticleEntity> local = dao.searchLocal(trimmed);
                 mainHandler.post(() -> {
                     if (local.isEmpty())
@@ -196,7 +224,7 @@ public class NewsRepository {
 
     // ── Lưu / Bỏ lưu bài ────────────────────────────────────────────────────
     public void toggleSave(NewsArticle article, boolean save) {
-        executor.execute(() -> {
+        dbExecutor.execute(() -> {
             if (save) {
                 NewsArticleEntity entity = mapArticle(article, "saved");
                 entity.isSaved = true;
@@ -209,7 +237,7 @@ public class NewsRepository {
     // ── Kiểm tra 1 bài đã lưu chưa (trả qua callback) ───────────────────────
     public void checkSaved(String url, SavedStateCallback callback) {
         if (url == null || callback == null) return;
-        executor.execute(() -> {
+        dbExecutor.execute(() -> {
             boolean saved = dao.isArticleSaved(url);
             mainHandler.post(() -> callback.onResult(saved));
         });
@@ -226,7 +254,7 @@ public class NewsRepository {
         if (article == null || article.getUrl() == null) return;
         final long now = System.currentTimeMillis();
 
-        executor.execute(() -> {
+        dbExecutor.execute(() -> {
             boolean wasSaved = dao.isArticleSaved(article.getUrl());
 
             NewsArticleEntity entity = mapArticle(article, "home");
@@ -238,13 +266,13 @@ public class NewsRepository {
 
     /** Xóa toàn bộ lịch sử đọc (giữ nguyên bài đã lưu) */
     public void clearHistory() {
-        executor.execute(dao::clearHistory);
+        dbExecutor.execute(dao::clearHistory);
     }
 
     /** Xóa 1 mục khỏi lịch sử (giữ nguyên nếu đã lưu) */
     public void removeFromHistory(String url) {
         if (url == null) return;
-        executor.execute(() -> dao.removeFromHistory(url));
+        dbExecutor.execute(() -> dao.removeFromHistory(url));
     }
 
     // ── Kiểm tra mạng ────────────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 package com.example.doanmobile002.ui.home;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
@@ -53,6 +55,11 @@ public class HomeFragment extends Fragment {
     private TextView chipThoiSu, chipTheThao, chipKinhTe,
             chipSucKhoe, chipKhoaHoc, chipTheGioi, chipGiaiTri;
     private TextView activeChip = null;
+
+    // Debounce cho ô tìm kiếm
+    private final Handler debounceHandler = new Handler(Looper.getMainLooper());
+    private Runnable       searchRunnable;
+    private static final long SEARCH_DEBOUNCE_MS = 350;
 
     @Nullable
     @Override
@@ -114,6 +121,21 @@ public class HomeFragment extends Fragment {
         adapter = new NewsAdapter(requireContext());
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
         recyclerView.setAdapter(adapter);
+
+        // Chỉ cho phép SwipeRefreshLayout bắt sự kiện kéo-để-refresh khi
+        // RecyclerView đang thật sự ở vị trí trên cùng (item đầu, scroll = 0).
+        // Nếu thiếu điều kiện này, đôi khi cử chỉ cuộn ở giữa danh sách
+        // (đặc biệt cuộn nhanh/giật tay) vẫn bị SwipeRefreshLayout hiểu nhầm
+        // là kéo-để-refresh, khiến spinner bật lên và loadHomeNews() chạy lại
+        // ngay giữa lúc đang xem, gây cảm giác "đang cuộn thì bị load lại trang".
+        recyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
+                super.onScrolled(rv, dx, dy);
+                boolean atTop = !rv.canScrollVertically(-1);
+                swipeRefresh.setEnabled(atTop);
+            }
+        });
     }
 
     private void setupSearch() {
@@ -123,12 +145,20 @@ public class HomeFragment extends Fragment {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 String q = s.toString().trim();
+
+                // Hủy lệnh search đang chờ (nếu có) mỗi khi text đổi
+                if (searchRunnable != null) {
+                    debounceHandler.removeCallbacks(searchRunnable);
+                }
+
                 if (q.isEmpty()) {
                     // Nếu người dùng xoá hết chữ → reset chip + thoát search
                     setChipActive(null);
                     viewModel.exitSearch();
                 } else if (q.length() >= 3) {
-                    viewModel.searchNews(q);
+                    // Debounce: chỉ gọi search sau khi người dùng ngừng gõ 1 chút
+                    searchRunnable = () -> viewModel.searchNews(q);
+                    debounceHandler.postDelayed(searchRunnable, SEARCH_DEBOUNCE_MS);
                 }
             }
         });
@@ -156,8 +186,11 @@ public class HomeFragment extends Fragment {
                     etSearch.setText("");
                     viewModel.exitSearch();
                 } else {
-                    // Chọn chip mới → search theo từ khoá
+                    // Chọn chip mới → search theo từ khoá (gọi ngay, không cần debounce)
                     setChipActive(chip);
+                    if (searchRunnable != null) {
+                        debounceHandler.removeCallbacks(searchRunnable);
+                    }
                     etSearch.setText(keyword);
                     etSearch.setSelection(keyword.length()); // đặt con trỏ cuối
                     viewModel.searchNews(keyword);
@@ -247,5 +280,14 @@ public class HomeFragment extends Fragment {
         if (tvGoldBuy != null)     tvGoldBuy.setText(data.getGoldBuy());
         if (tvGoldSell != null)    tvGoldSell.setText(data.getGoldSell());
         if (tvGoldUnit != null)    tvGoldUnit.setText(data.getGoldUnit());
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        // Hủy mọi lệnh debounce đang chờ để tránh leak/crash khi view đã hủy
+        if (searchRunnable != null) {
+            debounceHandler.removeCallbacks(searchRunnable);
+        }
     }
 }
